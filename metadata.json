@@ -1,0 +1,8 @@
+{
+  "name": "Inztagram",
+  "description": "A calm, botanical-inspired social photo and short-video sharing app with feeds, Reels, Stories, profiles, direct messages, and notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

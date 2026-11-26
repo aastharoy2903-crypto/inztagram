@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Glasshouse conservatory with arched windows and blooming hydrangeas">
+  <defs>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#D4E7FF"/>
+      <stop offset="65%" stop-color="#F6EFF9"/>
+      <stop offset="100%" stop-color="#F2D9EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="#F2ECF6"/>
+  <path d="M120 720 L120 320 A280 280 0 0 1 680 320 L680 720 Z" fill="url(#glass)" stroke="#C9BDD3" stroke-width="6"/>
+  <line x1="400" y1="40" x2="400" y2="720" stroke="#C9BDD3" stroke-width="5"/>
+  <line x1="250" y1="90" x2="250" y2="720" stroke="#D8CFE0" stroke-width="3"/>
+  <line x1="550" y1="90" x2="550" y2="720" stroke="#D8CFE0" stroke-width="3"/>
+  <line x1="120" y1="360" x2="680" y2="360" stroke="#C9BDD3" stroke-width="4"/>
+  <line x1="120" y1="540" x2="680" y2="540" stroke="#C9BDD3" stroke-width="4"/>
+  <rect x="0" y="690" width="800" height="110" fill="#E3DAE9"/>
+  <g transform="translate(260 560)">
+    <ellipse cx="0" cy="40" rx="54" ry="34" fill="#638775"/>
+    <circle cx="-38" cy="12" r="42" fill="#B8D7FF"/>
+    <circle cx="14" cy="-6" r="46" fill="#D57FC4"/>
+    <circle cx="48" cy="24" r="36" fill="#C9DFFF"/>
+    <circle cx="-8" cy="36" r="34" fill="#E4A7D8"/>
+  </g>
+  <g transform="translate(530 585)">
+    <ellipse cx="0" cy="36" rx="46" ry="28" fill="#547866"/>
+    <circle cx="-24" cy="4" r="36" fill="#D57FC4"/>
+    <circle cx="24" cy="8" r="38" fill="#B8D7FF"/>
+    <circle cx="0" cy="28" r="30" fill="#E7BCE0"/>
+  </g>
+</svg>

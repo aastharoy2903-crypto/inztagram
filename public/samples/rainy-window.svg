@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Evening city café window glowing softly after rainfall">
+  <defs>
+    <linearGradient id="dusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#39243B"/>
+      <stop offset="55%" stop-color="#5B4469"/>
+      <stop offset="100%" stop-color="#7B6A94"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFEAD5"/>
+      <stop offset="100%" stop-color="#E7B3DE"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="800" fill="url(#dusk)"/>
+  <rect x="140" y="130" width="520" height="450" rx="20" fill="#2A192D"/>
+  <rect x="168" y="158" width="222" height="394" rx="10" fill="url(#glow)" opacity="0.9"/>
+  <rect x="410" y="158" width="222" height="394" rx="10" fill="url(#glow)" opacity="0.82"/>
+  <circle cx="280" cy="255" r="36" fill="#FFFFFF" opacity="0.65"/>
+  <circle cx="520" cy="255" r="36" fill="#FFFFFF" opacity="0.65"/>
+  <rect x="0" y="580" width="800" height="220" fill="#241527"/>
+  <ellipse cx="280" cy="655" rx="95" ry="18" fill="#D57FC4" opacity="0.28"/>
+  <ellipse cx="520" cy="655" rx="95" ry="18" fill="#B8D7FF" opacity="0.28"/>
+  <g stroke="#B8D7FF" stroke-width="2" stroke-linecap="round" opacity="0.38">
+    <line x1="90" y1="90" x2="72" y2="145"/>
+    <line x1="210" y1="60" x2="192" y2="115"/>
+    <line x1="650" y1="85" x2="632" y2="140"/>
+    <line x1="720" y1="210" x2="702" y2="265"/>
+    <line x1="105" y1="380" x2="87" y2="435"/>
+  </g>
+</svg>

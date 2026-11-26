@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="Botanical ink and watercolor study of hydrangea blossoms">
+  <rect width="800" height="800" fill="#FAF7FC"/>
+  <rect x="70" y="70" width="660" height="660" rx="16" fill="#FFFFFF" stroke="#E4DAE9" stroke-width="3"/>
+  <path d="M400 630 C395 520, 410 440, 415 340" stroke="#4D6E5E" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <ellipse cx="330" cy="505" rx="64" ry="30" transform="rotate(-28 330 505)" fill="#789B89" opacity="0.72"/>
+  <ellipse cx="478" cy="490" rx="62" ry="28" transform="rotate(24 478 490)" fill="#6B8E7C" opacity="0.72"/>
+  <g opacity="0.92">
+    <circle cx="340" cy="300" r="64" fill="#B8D7FF"/>
+    <circle cx="445" cy="285" r="68" fill="#D57FC4"/>
+    <circle cx="395" cy="220" r="60" fill="#C9DFFF"/>
+    <circle cx="315" cy="235" r="46" fill="#E3A5D7"/>
+    <circle cx="485" cy="348" r="52" fill="#B8D7FF"/>
+    <circle cx="385" cy="355" r="58" fill="#DF9ED3"/>
+  </g>
+  <g fill="#FFFFFF" opacity="0.75">
+    <circle cx="340" cy="300" r="8"/>
+    <circle cx="445" cy="285" r="8"/>
+    <circle cx="395" cy="220" r="8"/>
+    <circle cx="385" cy="355" r="7"/>
+  </g>
+</svg>

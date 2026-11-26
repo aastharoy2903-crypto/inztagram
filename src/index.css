@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --bg-canvas: #f8f5fa;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f1ecf5;
+  --text-primary: #39243b;
+  --text-secondary: #68556b;
+  --border-soft: #e5dce9;
+  --accent-petal: #d57fc4;
+  --accent-petal-strong: #a74695;
+  --accent-hydrangea: #b8d7ff;
+  --accent-hydrangea-strong: #37689e;
+  --danger-text: #b4234a;
+  --danger-bg: #fdf2f5;
+}
+
+@layer base {
+  html {
+    font-family: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: "Plus Jakarta Sans", "DM Sans", sans-serif;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    outline-color: var(--accent-petal-strong);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-petal-strong);
+    outline-offset: 2px;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Botanical story ring gradient using exact Petal & Hydrangea accents */
+.story-ring-unseen {
+  background: linear-gradient(135deg, #d57fc4 0%, #b8d7ff 100%);
+}
+
+.story-ring-seen {
+  background: #dcd2e2;
+}
+
+/* Custom scrollbar for clean feed and chat panes */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #ddd2e3;
+  border-radius: 9999px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
