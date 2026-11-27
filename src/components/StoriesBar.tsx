@@ -46,7 +46,7 @@ export const StoriesBar: React.FC = () => {
   return (
     <section
       aria-label="24-hour stories"
-      className="rounded-2xl bg-white border border-[#E5DCE9] px-4 py-3.5"
+      className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] px-4 py-3.5"
     >
       <div className="flex items-center gap-4 overflow-x-auto scrollbar-thin pb-1">
         {/* Add story button */}
@@ -55,20 +55,20 @@ export const StoriesBar: React.FC = () => {
           onClick={() => openCreateModal('story')}
           className="flex flex-col items-center gap-1.5 shrink-0 group focus-visible:outline-offset-4"
         >
-          <span className="w-16 h-16 rounded-full p-[2.5px] bg-[#E5DCE9] group-hover:bg-[#D57FC4] transition-colors relative flex items-center justify-center">
-            <span className="w-full h-full rounded-full bg-white p-0.5 block overflow-hidden">
+          <span className="w-16 h-16 rounded-full p-[2.5px] bg-[#E5DCE9] dark:bg-[#3A2D45] group-hover:bg-[#D57FC4] dark:group-hover:bg-[#FF64AE] transition-colors relative flex items-center justify-center">
+            <span className="w-full h-full rounded-full bg-white dark:bg-[#18131D] p-0.5 block overflow-hidden">
               <ResilientImage
-                src={currentUser?.avatarUrl || '/samples/avatar-you.svg'}
+                src={currentUser?.avatarUrl || '/assets/aistudio/image_251618e5.png'}
                 alt="Your story"
                 objectPosition={currentUser?.avatarPosition}
                 className="w-full h-full rounded-full object-cover"
               />
             </span>
-            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#39243B] text-white border-2 border-white flex items-center justify-center">
+            <span className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-[#39243B] dark:bg-[#FF64AE] text-white dark:text-[#111111] border-2 border-white dark:border-[#18131D] flex items-center justify-center">
               <Plus className="w-3.5 h-3.5" aria-hidden="true" />
             </span>
           </span>
-          <span className="text-xs text-[#39243B] font-medium max-w-[68px] truncate">
+          <span className="text-xs text-[#39243B] dark:text-[#F6EFF8] font-medium max-w-[68px] truncate">
             Your story
           </span>
         </button>
@@ -86,7 +86,7 @@ export const StoriesBar: React.FC = () => {
                 unseen ? 'story-ring-unseen' : 'story-ring-seen'
               }`}
             >
-              <span className="w-full h-full rounded-full bg-white p-[2px] block overflow-hidden">
+              <span className="w-full h-full rounded-full bg-white dark:bg-[#18131D] p-[2px] block overflow-hidden">
                 <ResilientImage
                   src={user.avatarUrl}
                   alt={user.displayName}
@@ -95,14 +95,14 @@ export const StoriesBar: React.FC = () => {
                 />
               </span>
             </span>
-            <span className="text-xs text-[#39243B] font-medium max-w-[68px] truncate">
+            <span className="text-xs text-[#39243B] dark:text-[#F6EFF8] font-medium max-w-[68px] truncate">
               {authorId === currentUser?.uid ? 'You' : user.username}
             </span>
           </button>
         ))}
 
         {groupedAuthors.length === 0 && (
-          <p className="text-xs text-[#68556B] py-2">
+          <p className="text-xs text-[#68556B] dark:text-[#B7A6BD] py-2">
             No active stories right now. Share a 24-hour moment!
           </p>
         )}

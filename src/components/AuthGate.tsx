@@ -1,14 +1,22 @@
 import React, { useState } from 'react';
-import { ArrowRight, BookOpen, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { ArrowRight, BookOpen, Eye, EyeOff, Loader2, Moon, Sun } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { isFirebaseConfigured } from '../lib/firebase';
 import { normalizeUsername, validateUsername } from '../utils/formatters';
-import { BrandMark } from './BrandMark';
+import { BrandMark, LOGO_ASSET_PATH } from './BrandMark';
 
 type AuthTab = 'login' | 'signup' | 'reset';
 
 export const AuthGate: React.FC = () => {
-  const { signIn, signUp, sendPasswordReset, enterDemoMode, setIsSetupGuideOpen } = useApp();
+  const {
+    theme,
+    toggleTheme,
+    signIn,
+    signUp,
+    sendPasswordReset,
+    enterDemoMode,
+    setIsSetupGuideOpen,
+  } = useApp();
 
   const [tab, setTab] = useState<AuthTab>('login');
   const [email, setEmail] = useState('');
@@ -89,66 +97,71 @@ export const AuthGate: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F5FA] text-[#39243B] flex flex-col justify-between">
+    <div className="min-h-screen bg-[#F8F5FA] dark:bg-[#0F0C12] text-[#39243B] dark:text-[#F6EFF8] flex flex-col justify-between transition-colors">
       <header className="w-full max-w-6xl mx-auto px-6 py-5 flex items-center justify-between gap-4">
         <BrandMark size={32} showWordmark />
-        <button
-          type="button"
-          onClick={() => setIsSetupGuideOpen(true)}
-          className="inline-flex items-center gap-2 text-sm font-medium text-[#68556B] hover:text-[#39243B] px-3 py-2 rounded-xl hover:bg-white transition-colors whitespace-nowrap"
-        >
-          <BookOpen className="w-4 h-4" aria-hidden="true" />
-          Setup &amp; Rules
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8] px-3 py-2 rounded-xl hover:bg-white dark:hover:bg-[#18131D] transition-colors whitespace-nowrap"
+          >
+            {theme === 'dark' ? (
+              <Sun className="w-4 h-4 text-[#FF64AE]" aria-hidden="true" />
+            ) : (
+              <Moon className="w-4 h-4 text-[#A74695]" aria-hidden="true" />
+            )}
+            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsSetupGuideOpen(true)}
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8] px-3 py-2 rounded-xl hover:bg-white dark:hover:bg-[#18131D] transition-colors whitespace-nowrap"
+          >
+            <BookOpen className="w-4 h-4" aria-hidden="true" />
+            <span>Setup &amp; Rules</span>
+          </button>
+        </div>
       </header>
 
       <main className="w-full max-w-6xl mx-auto px-6 py-6 lg:py-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-        {/* Editorial intro & flower palette card */}
+        {/* Editorial intro & Official Inztagram Logo Showcase */}
         <section className="lg:col-span-6 space-y-6">
           <div className="space-y-3">
-            <p className="text-sm font-medium text-[#A74695]">
+            <p className="text-sm font-medium text-[#A74695] dark:text-[#FF64AE]">
               Photo &amp; short-video journal
             </p>
             <h1 className="font-display text-3xl sm:text-4xl lg:text-[42px] font-bold tracking-tight leading-[1.12] [text-wrap:balance]">
               Share calm moments in full bloom.
             </h1>
-            <p className="text-base text-[#68556B] max-w-lg leading-relaxed">
-              Follow creators you admire, share photo stories and short vertical Reels, and message friends without noisy clutter.
+            <p className="text-base text-[#68556B] dark:text-[#B7A6BD] max-w-lg leading-relaxed">
+              Follow creators you admire, share photo stories and short vertical Reels, message friends with custom chat themes, and unwind with Snap Match.
             </p>
           </div>
 
-          <div className="grid grid-cols-12 gap-4 items-stretch max-w-lg">
-            <div className="col-span-7 rounded-2xl overflow-hidden bg-white border border-[#E5DCE9] shadow-sm">
+          <div className="max-w-lg rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="overflow-hidden rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#111111]">
               <img
-                src="/assets/aistudio/image_55aee536.png"
-                alt="Pink and blue hydrangea blossoms inspiring the Inztagram color palette"
-                className="w-full h-56 object-cover"
+                src={LOGO_ASSET_PATH}
+                alt="Inztagram official light and dark app logos"
+                className="w-full h-auto object-cover block"
               />
             </div>
-            <div className="col-span-5 flex flex-col gap-3">
-              <div className="flex-1 rounded-2xl bg-white border border-[#E5DCE9] p-4 flex flex-col justify-between">
-                <div className="w-full h-10 rounded-lg bg-[#D57FC4]" aria-hidden="true" />
-                <div className="mt-2">
-                  <p className="text-xs font-semibold text-[#39243B]">Petal Pink</p>
-                  <p className="text-xs text-[#68556B] tabular-nums">#D57FC4</p>
-                </div>
-              </div>
-              <div className="flex-1 rounded-2xl bg-white border border-[#E5DCE9] p-4 flex flex-col justify-between">
-                <div className="w-full h-10 rounded-lg bg-[#B8D7FF]" aria-hidden="true" />
-                <div className="mt-2">
-                  <p className="text-xs font-semibold text-[#39243B]">Hydrangea Blue</p>
-                  <p className="text-xs text-[#68556B] tabular-nums">#B8D7FF</p>
-                </div>
-              </div>
+            <div className="flex items-center justify-between text-xs text-[#68556B] dark:text-[#B7A6BD]">
+              <span className="font-medium text-[#39243B] dark:text-[#F6EFF8]">
+                Inztagram Light &amp; Dark Emblem
+              </span>
+              <span>Adaptive theme ready</span>
             </div>
           </div>
         </section>
 
         {/* Auth & Demo card */}
         <section className="lg:col-span-6">
-          <div className="w-full max-w-md mx-auto rounded-2xl bg-white border border-[#E5DCE9] shadow-sm p-6 sm:p-7 space-y-5">
+          <div className="w-full max-w-md mx-auto rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] shadow-sm p-6 sm:p-7 space-y-5">
             {!isFirebaseConfigured && (
-              <div className="rounded-xl bg-[#F3EEF7] border border-[#E5DCE9] px-4 py-3 text-xs text-[#39243B] leading-relaxed">
+              <div className="rounded-xl bg-[#F3EEF7] dark:bg-[#231C29] border border-[#E5DCE9] dark:border-[#362A40] px-4 py-3 text-xs text-[#39243B] dark:text-[#E9DDF0] leading-relaxed">
                 <span className="font-semibold">Demo environment active.</span> Firebase keys are not configured yet, so account sign-in is disabled. Explore instantly with sample creators below.
               </div>
             )}
@@ -158,25 +171,27 @@ export const AuthGate: React.FC = () => {
               <button
                 type="button"
                 onClick={enterDemoMode}
-                className="w-full min-h-[46px] px-5 py-3 rounded-xl bg-[#39243B] hover:bg-[#4E3351] active:scale-[0.99] text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+                className="w-full min-h-[46px] px-5 py-3 rounded-xl bg-[#39243B] dark:bg-[#FF64AE] hover:bg-[#4E3351] dark:hover:bg-[#ff7abb] active:scale-[0.99] text-white dark:text-[#111111] font-semibold text-sm flex items-center justify-center gap-2 transition-all"
               >
                 <span>Explore demo</span>
                 <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </button>
-              <p className="text-xs text-center text-[#68556B]">
+              <p className="text-xs text-center text-[#68556B] dark:text-[#B7A6BD]">
                 No real credentials needed · Demo interactions stay in this browser
               </p>
             </div>
 
             <div className="relative flex items-center py-1">
-              <div className="flex-grow border-t border-[#E5DCE9]" />
-              <span className="mx-3 text-xs text-[#68556B]">or use your account</span>
-              <div className="flex-grow border-t border-[#E5DCE9]" />
+              <div className="flex-grow border-t border-[#E5DCE9] dark:border-[#2E2436]" />
+              <span className="mx-3 text-xs text-[#68556B] dark:text-[#B7A6BD]">
+                or use your account
+              </span>
+              <div className="flex-grow border-t border-[#E5DCE9] dark:border-[#2E2436]" />
             </div>
 
             {/* Segmented Auth Mode tabs */}
             <div
-              className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#F8F5FA] border border-[#E5DCE9]"
+              className="grid grid-cols-3 gap-1 p-1 rounded-xl bg-[#F8F5FA] dark:bg-[#120E16] border border-[#E5DCE9] dark:border-[#2E2436]"
               role="tablist"
               aria-label="Account access mode"
             >
@@ -195,8 +210,8 @@ export const AuthGate: React.FC = () => {
                   onClick={() => switchTab(item.id)}
                   className={`min-h-[38px] rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                     tab === item.id
-                      ? 'bg-white text-[#39243B] shadow-xs border border-[#E5DCE9]'
-                      : 'text-[#68556B] hover:text-[#39243B]'
+                      ? 'bg-white dark:bg-[#231C29] text-[#39243B] dark:text-[#F6EFF8] shadow-xs border border-[#E5DCE9] dark:border-[#3A2D45]'
+                      : 'text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]'
                   }`}
                 >
                   {item.label}
@@ -210,7 +225,7 @@ export const AuthGate: React.FC = () => {
                   <div>
                     <label
                       htmlFor="auth-display-name"
-                      className="block text-xs font-semibold text-[#39243B] mb-1.5"
+                      className="block text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] mb-1.5"
                     >
                       Display name
                     </label>
@@ -221,13 +236,13 @@ export const AuthGate: React.FC = () => {
                       onChange={(e) => setDisplayName(e.target.value)}
                       placeholder="Elena Park"
                       autoComplete="name"
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm text-[#39243B] placeholder:text-[#8E7B91] focus:bg-white"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91] focus:bg-white dark:focus:bg-[#1E1824]"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="auth-username"
-                      className="block text-xs font-semibold text-[#39243B] mb-1.5"
+                      className="block text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] mb-1.5"
                     >
                       Username
                     </label>
@@ -238,7 +253,7 @@ export const AuthGate: React.FC = () => {
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="elena.park"
                       autoComplete="username"
-                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm text-[#39243B] placeholder:text-[#8E7B91] focus:bg-white"
+                      className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91] focus:bg-white dark:focus:bg-[#1E1824]"
                     />
                   </div>
                 </>
@@ -247,7 +262,7 @@ export const AuthGate: React.FC = () => {
               <div>
                 <label
                   htmlFor="auth-email"
-                  className="block text-xs font-semibold text-[#39243B] mb-1.5"
+                  className="block text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] mb-1.5"
                 >
                   Email address
                 </label>
@@ -258,7 +273,7 @@ export const AuthGate: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm text-[#39243B] placeholder:text-[#8E7B91] focus:bg-white"
+                  className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91] focus:bg-white dark:focus:bg-[#1E1824]"
                 />
               </div>
 
@@ -266,7 +281,7 @@ export const AuthGate: React.FC = () => {
                 <div>
                   <label
                     htmlFor="auth-password"
-                    className="block text-xs font-semibold text-[#39243B] mb-1.5"
+                    className="block text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] mb-1.5"
                   >
                     Password
                   </label>
@@ -278,13 +293,13 @@ export const AuthGate: React.FC = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="At least 6 characters"
                       autoComplete={tab === 'login' ? 'current-password' : 'new-password'}
-                      className="w-full min-h-[42px] px-3.5 pr-11 py-2 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm text-[#39243B] placeholder:text-[#8E7B91] focus:bg-white"
+                      className="w-full min-h-[42px] px-3.5 pr-11 py-2 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91] focus:bg-white dark:focus:bg-[#1E1824]"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((prev) => !prev)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#68556B] hover:text-[#39243B] rounded-lg"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8] rounded-lg"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -299,7 +314,7 @@ export const AuthGate: React.FC = () => {
               {error && (
                 <p
                   role="alert"
-                  className="rounded-xl bg-[#FDF2F5] border border-[#F5CBD6] px-3.5 py-2.5 text-xs font-medium text-[#B4234A]"
+                  className="rounded-xl bg-[#FDF2F5] dark:bg-[#2F1722] border border-[#F5CBD6] dark:border-[#5D293F] px-3.5 py-2.5 text-xs font-medium text-[#B4234A] dark:text-[#FF7B9C]"
                 >
                   {error}
                 </p>
@@ -308,7 +323,7 @@ export const AuthGate: React.FC = () => {
               {infoMessage && (
                 <p
                   role="status"
-                  className="rounded-xl bg-[#EEF6FF] border border-[#B8D7FF] px-3.5 py-2.5 text-xs font-medium text-[#2A5380]"
+                  className="rounded-xl bg-[#EEF6FF] dark:bg-[#162235] border border-[#B8D7FF] dark:border-[#2C476D] px-3.5 py-2.5 text-xs font-medium text-[#2A5380] dark:text-[#9FC1FF]"
                 >
                   {infoMessage}
                 </p>
@@ -317,7 +332,7 @@ export const AuthGate: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#A74695] hover:bg-[#913980] disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-[#A74695] hover:bg-[#913980] dark:bg-[#FF64AE] dark:hover:bg-[#ff7abb] disabled:opacity-60 text-white dark:text-[#111111] text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
               >
                 {submitting && <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />}
                 <span>
@@ -333,7 +348,7 @@ export const AuthGate: React.FC = () => {
         </section>
       </main>
 
-      <footer className="w-full max-w-6xl mx-auto px-6 py-4 text-xs text-[#68556B] flex flex-wrap items-center justify-between gap-3">
+      <footer className="w-full max-w-6xl mx-auto px-6 py-4 text-xs text-[#68556B] dark:text-[#B7A6BD] flex flex-wrap items-center justify-between gap-3">
         <span>Inztagram · Original botanical social gallery</span>
         <span>
           {isFirebaseConfigured ? 'Firebase configured' : 'Local Demo Mode available'}

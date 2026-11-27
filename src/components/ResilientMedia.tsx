@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ImageOff, Pause, Play, Volume2, VolumeX } from 'lucide-react';
+import { Film, ImageOff, Pause, Play, Volume2, VolumeX } from 'lucide-react';
 import { generateDemoReelBlobUrl } from '../utils/proceduralVideo';
 
 interface ResilientImageProps {
@@ -26,9 +26,9 @@ export const ResilientImage: React.FC<ResilientImageProps> = ({
       <div
         role="img"
         aria-label={alt || 'Image unavailable'}
-        className={`flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#F3E7F4] via-[#F8F5FA] to-[#E3EEFF] text-[#68556B] p-6 text-center ${className}`}
+        className={`flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#F3E7F4] via-[#F8F5FA] to-[#E3EEFF] dark:from-[#261C2C] dark:via-[#1C1521] dark:to-[#182132] text-[#68556B] dark:text-[#B7A6BD] p-6 text-center ${className}`}
       >
-        <ImageOff className="w-6 h-6 text-[#A74695]" aria-hidden="true" />
+        <ImageOff className="w-6 h-6 text-[#A74695] dark:text-[#FF64AE]" aria-hidden="true" />
         <span className="text-xs font-medium max-w-[22ch] line-clamp-2">
           {alt || 'Media preview unavailable'}
         </span>
@@ -43,6 +43,71 @@ export const ResilientImage: React.FC<ResilientImageProps> = ({
       referrerPolicy="no-referrer"
       loading="lazy"
       onError={() => setFailed(true)}
+      style={{ objectPosition }}
+      className={className}
+    />
+  );
+};
+
+interface ResilientVideoThumbnailProps {
+  src: string;
+  posterUrl?: string;
+  alt: string;
+  className?: string;
+  objectPosition?: string;
+}
+
+export const ResilientVideoThumbnail: React.FC<ResilientVideoThumbnailProps> = ({
+  src,
+  posterUrl,
+  alt,
+  className = '',
+  objectPosition = 'center',
+}) => {
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [src]);
+
+  if ((!src || videoFailed) && posterUrl) {
+    return (
+      <ResilientImage
+        src={posterUrl}
+        alt={alt}
+        objectPosition={objectPosition}
+        className={className}
+      />
+    );
+  }
+
+  if (!src || videoFailed) {
+    return (
+      <div
+        role="img"
+        aria-label={alt || 'Video reel'}
+        className={`flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#E5DCE9] via-[#39243B] to-[#241626] text-white p-4 text-center ${className}`}
+      >
+        <Film className="w-6 h-6 text-[#D57FC4]" aria-hidden="true" />
+        <span className="text-xs font-medium max-w-[20ch] line-clamp-2">
+          {alt || 'Reel clip'}
+        </span>
+      </div>
+    );
+  }
+
+  const previewSrc =
+    src.startsWith('blob:') || src.includes('#') ? src : `${src}#t=0.1`;
+
+  return (
+    <video
+      src={previewSrc}
+      poster={posterUrl}
+      muted
+      playsInline
+      preload="metadata"
+      aria-label={alt}
+      onError={() => setVideoFailed(true)}
       style={{ objectPosition }}
       className={className}
     />
@@ -77,6 +142,8 @@ export const ReelVideoPlayer: React.FC<ReelVideoPlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Never autoplay sound
   const [progress, setProgress] = useState(0);
+
+  const hasDirectVideoSrc = Boolean(src);
 
   useEffect(() => {
     setPosterFailed(false);
@@ -166,12 +233,15 @@ export const ReelVideoPlayer: React.FC<ReelVideoPlayerProps> = ({
     return () => window.clearInterval(id);
   }, [videoFailed, isPlaying, isActive]);
 
+  const showPosterLayer = Boolean(posterUrl && !posterFailed && (!hasDirectVideoSrc || videoFailed));
+  const useTranslucentOverlay = !hasDirectVideoSrc && Boolean(posterUrl && !posterFailed);
+
   return (
     <div
       className={`relative overflow-hidden bg-[#241626] select-none ${className}`}
       onClick={togglePlay}
     >
-      {posterUrl && !posterFailed && (
+      {showPosterLayer && posterUrl && (
         <img
           src={posterUrl}
           alt={altText}
@@ -188,27 +258,37 @@ export const ReelVideoPlayer: React.FC<ReelVideoPlayerProps> = ({
           ref={videoRef}
           src={resolvedSrc}
           poster={!posterFailed ? posterUrl : undefined}
+          preload="auto"
           playsInline
           loop
           muted={isMuted}
           aria-label={altText}
           onTimeUpdate={handleTimeUpdate}
           onError={() => setVideoFailed(true)}
+          style={{ objectPosition }}
           className={`relative w-full h-full object-cover ${
-            posterUrl && !posterFailed ? 'opacity-35 mix-blend-screen' : ''
+            useTranslucentOverlay ? 'opacity-35 mix-blend-screen' : 'opacity-100'
           }`}
         />
-      ) : !posterUrl || posterFailed ? (
-        <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-b from-[#E5DCE9] to-[#39243B]">
-          <div className="p-6 text-center text-white/90 text-sm">
-            <p className="font-medium">Video preview unavailable</p>
-            <p className="text-xs text-white/70 mt-1">{altText}</p>
+      ) : posterUrl && !posterFailed ? (
+        <div className="relative w-full h-full pointer-events-none">
+          <div className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#39243B]/80 backdrop-blur-sm text-white text-[11px] font-medium border border-white/15">
+            <Film className="w-3.5 h-3.5 text-[#D57FC4]" aria-hidden="true" />
+            <span>Video unavailable · Showing poster preview</span>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="relative w-full h-full flex items-center justify-center bg-gradient-to-b from-[#E5DCE9] to-[#39243B]">
+          <div className="p-6 text-center text-white/90 text-sm">
+            <Film className="w-7 h-7 text-[#D57FC4] mx-auto mb-2" aria-hidden="true" />
+            <p className="font-medium">Video playback unavailable</p>
+            <p className="text-xs text-white/70 mt-1 max-w-[28ch] mx-auto">{altText}</p>
+          </div>
+        </div>
+      )}
 
       {/* Center play/pause indicator when paused */}
-      {!isPlaying && (
+      {!isPlaying && !videoFailed && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/15">
           <span className="w-12 h-12 rounded-full bg-[#39243B]/75 backdrop-blur-sm text-white flex items-center justify-center shadow-md">
             <Play className="w-5 h-5 translate-x-0.5" aria-hidden="true" />
@@ -222,30 +302,34 @@ export const ReelVideoPlayer: React.FC<ReelVideoPlayerProps> = ({
           compact ? 'bottom-3 right-3' : 'top-3 right-3'
         } flex items-center gap-2 z-10`}
       >
-        <button
-          type="button"
-          onClick={togglePlay}
-          aria-label={isPlaying ? 'Pause video' : 'Play video'}
-          className="min-h-[40px] min-w-[40px] rounded-full bg-[#39243B]/70 hover:bg-[#39243B]/90 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
-        >
-          {isPlaying ? (
-            <Pause className="w-4 h-4" aria-hidden="true" />
-          ) : (
-            <Play className="w-4 h-4 translate-x-0.5" aria-hidden="true" />
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-          className="min-h-[40px] min-w-[40px] rounded-full bg-[#39243B]/70 hover:bg-[#39243B]/90 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
-        >
-          {isMuted ? (
-            <VolumeX className="w-4 h-4" aria-hidden="true" />
-          ) : (
-            <Volume2 className="w-4 h-4" aria-hidden="true" />
-          )}
-        </button>
+        {!videoFailed && (
+          <>
+            <button
+              type="button"
+              onClick={togglePlay}
+              aria-label={isPlaying ? 'Pause video' : 'Play video'}
+              className="min-h-[40px] min-w-[40px] rounded-full bg-[#39243B]/70 hover:bg-[#39243B]/90 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+            >
+              {isPlaying ? (
+                <Pause className="w-4 h-4" aria-hidden="true" />
+              ) : (
+                <Play className="w-4 h-4 translate-x-0.5" aria-hidden="true" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={toggleMute}
+              aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+              className="min-h-[40px] min-w-[40px] rounded-full bg-[#39243B]/70 hover:bg-[#39243B]/90 text-white flex items-center justify-center backdrop-blur-sm transition-colors"
+            >
+              {isMuted ? (
+                <VolumeX className="w-4 h-4" aria-hidden="true" />
+              ) : (
+                <Volume2 className="w-4 h-4" aria-hidden="true" />
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Subtle progress bar */}

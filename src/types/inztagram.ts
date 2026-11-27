@@ -2,9 +2,20 @@ export type AppDestination =
   | 'home'
   | 'reels'
   | 'explore'
+  | 'game'
   | 'messages'
   | 'notifications'
   | 'profile';
+
+export type ThemeMode = 'light' | 'dark';
+
+export type ChatThemeId =
+  | 'default'
+  | 'rose'
+  | 'ocean'
+  | 'emerald'
+  | 'sunset'
+  | 'midnight';
 
 export type MediaType = 'image' | 'video';
 
@@ -19,6 +30,7 @@ export interface UserProfile {
   followingCount: number;
   postsCount: number;
   createdAt: number;
+  isSample?: boolean;
 }
 
 export interface PostComment {
@@ -27,6 +39,7 @@ export interface PostComment {
   authorId: string;
   text: string;
   createdAt: number;
+  isSample?: boolean;
 }
 
 export interface Post {
@@ -43,6 +56,7 @@ export interface Post {
   likesCount: number;
   commentsCount: number;
   createdAt: number;
+  isSample?: boolean;
   /** Optional demo scene identifier for graceful Reel animation fallback */
   demoReelTheme?: 'petal' | 'hydrangea' | 'twilight' | 'studio';
 }
@@ -57,6 +71,7 @@ export interface Story {
   altText: string;
   createdAt: number;
   expiresAt: number;
+  isSample?: boolean;
 }
 
 export interface Conversation {

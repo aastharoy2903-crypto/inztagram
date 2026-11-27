@@ -12,7 +12,8 @@ import {
 import { useApp } from '../context/AppContext';
 import { formatCompactCount } from '../utils/formatters';
 import { EditProfileModal } from './EditProfileModal';
-import { ResilientImage } from './ResilientMedia';
+import { ResilientImage, ResilientVideoThumbnail } from './ResilientMedia';
+import { SampleBadge } from './SampleBadge';
 
 export const ProfileView: React.FC = () => {
   const {
@@ -28,6 +29,7 @@ export const ProfileView: React.FC = () => {
     toggleFollow,
     startConversation,
     openCreateModal,
+    setDestination,
     reportContent,
     toggleBlockUser,
   } = useApp();
@@ -60,7 +62,7 @@ export const ProfileView: React.FC = () => {
 
   if (!profileUser) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-14 text-center text-sm text-[#68556B]">
+      <div className="max-w-3xl mx-auto px-4 py-14 text-center text-sm text-[#68556B] dark:text-[#B7A6BD]">
         Profile unavailable.
       </div>
     );
@@ -72,22 +74,27 @@ export const ProfileView: React.FC = () => {
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
       {/* Profile Header Card */}
-      <section className="rounded-2xl bg-white border border-[#E5DCE9] p-5 sm:p-7">
+      <section className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] p-5 sm:p-7">
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
           <ResilientImage
             src={profileUser.avatarUrl}
             alt={profileUser.displayName}
             objectPosition={profileUser.avatarPosition}
-            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-2 border-[#E5DCE9] shrink-0"
+            className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-2 border-[#E5DCE9] dark:border-[#3A2D45] shrink-0"
           />
 
           <div className="flex-1 min-w-0 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="min-w-0">
-                <h1 className="font-display text-xl sm:text-2xl font-bold text-[#39243B] truncate">
-                  {profileUser.displayName}
-                </h1>
-                <p className="text-sm text-[#68556B] truncate">@{profileUser.username}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <h1 className="font-display text-xl sm:text-2xl font-bold text-[#39243B] dark:text-[#F6EFF8] truncate">
+                    {profileUser.displayName}
+                  </h1>
+                  {profileUser.isSample && <SampleBadge label="Sample creator" />}
+                </div>
+                <p className="text-sm text-[#68556B] dark:text-[#B7A6BD] truncate">
+                  @{profileUser.username}
+                </p>
               </div>
 
               {/* Action buttons strictly respecting profile ownership */}
@@ -97,14 +104,14 @@ export const ProfileView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setEditOpen(true)}
-                      className="min-h-[40px] px-4 rounded-xl bg-[#F8F5FA] hover:bg-[#EFE7F5] border border-[#E5DCE9] text-xs font-semibold text-[#39243B] transition-colors whitespace-nowrap"
+                      className="min-h-[40px] px-4 rounded-xl bg-[#F8F5FA] dark:bg-[#231C29] hover:bg-[#EFE7F5] dark:hover:bg-[#2E2436] border border-[#E5DCE9] dark:border-[#3A2D45] text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] transition-colors whitespace-nowrap"
                     >
                       Edit profile
                     </button>
                     <button
                       type="button"
                       onClick={() => openCreateModal('post')}
-                      className="min-h-[40px] px-4 rounded-xl bg-[#39243B] hover:bg-[#4E3351] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                      className="min-h-[40px] px-4 rounded-xl bg-[#39243B] dark:bg-[#A74695] hover:bg-[#4E3351] dark:hover:bg-[#913980] text-white text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
                     >
                       <PlusSquare className="w-4 h-4" aria-hidden="true" />
                       <span>Create</span>
@@ -117,7 +124,7 @@ export const ProfileView: React.FC = () => {
                       onClick={() => toggleFollow(profileUser.uid)}
                       className={`min-h-[40px] px-4 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap ${
                         isFollowing
-                          ? 'bg-[#F8F5FA] border border-[#E5DCE9] text-[#39243B] hover:bg-[#EFE7F5]'
+                          ? 'bg-[#F8F5FA] dark:bg-[#231C29] border border-[#E5DCE9] dark:border-[#3A2D45] text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#EFE7F5] dark:hover:bg-[#2E2436]'
                           : 'bg-[#A74695] hover:bg-[#913980] text-white'
                       }`}
                     >
@@ -126,7 +133,7 @@ export const ProfileView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => startConversation(profileUser.uid)}
-                      className="min-h-[40px] px-4 rounded-xl bg-[#EEF6FF] hover:bg-[#DCEBFF] text-[#2A5380] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                      className="min-h-[40px] px-4 rounded-xl bg-[#EEF6FF] dark:bg-[#1B2A42] hover:bg-[#DCEBFF] dark:hover:bg-[#243757] text-[#2A5380] dark:text-[#9FC1FF] text-xs font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
                     >
                       <MessageCircle className="w-4 h-4" aria-hidden="true" />
                       <span>Message</span>
@@ -137,7 +144,7 @@ export const ProfileView: React.FC = () => {
                         type="button"
                         onClick={() => setSafetyMenuOpen((prev) => !prev)}
                         aria-label="User safety options"
-                        className="min-h-[40px] min-w-[40px] rounded-xl border border-[#E5DCE9] flex items-center justify-center text-[#68556B] hover:bg-[#F8F5FA]"
+                        className="min-h-[40px] min-w-[40px] rounded-xl border border-[#E5DCE9] dark:border-[#3A2D45] flex items-center justify-center text-[#68556B] dark:text-[#B7A6BD] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29]"
                       >
                         <MoreHorizontal className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -145,7 +152,7 @@ export const ProfileView: React.FC = () => {
                       {safetyMenuOpen && (
                         <div
                           role="menu"
-                          className="absolute right-0 mt-1 w-48 rounded-xl bg-white border border-[#E5DCE9] shadow-lg p-1.5 z-20"
+                          className="absolute right-0 mt-1 w-48 rounded-xl bg-white dark:bg-[#1B1522] border border-[#E5DCE9] dark:border-[#2E2436] shadow-lg p-1.5 z-20"
                         >
                           <button
                             type="button"
@@ -158,9 +165,9 @@ export const ProfileView: React.FC = () => {
                                 reason: 'Reported user profile',
                               });
                             }}
-                            className="w-full min-h-[38px] px-3 rounded-lg text-left text-xs font-medium text-[#39243B] hover:bg-[#F8F5FA] flex items-center gap-2"
+                            className="w-full min-h-[38px] px-3 rounded-lg text-left text-xs font-medium text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29] flex items-center gap-2"
                           >
-                            <Flag className="w-3.5 h-3.5 text-[#68556B]" aria-hidden="true" />
+                            <Flag className="w-3.5 h-3.5 text-[#68556B] dark:text-[#B7A6BD]" aria-hidden="true" />
                             <span>Report {mode === 'demo' ? '(Demo only)' : ''}</span>
                           </button>
                           <button
@@ -170,7 +177,7 @@ export const ProfileView: React.FC = () => {
                               setSafetyMenuOpen(false);
                               toggleBlockUser(profileUser.uid);
                             }}
-                            className="w-full min-h-[38px] px-3 rounded-lg text-left text-xs font-semibold text-[#B4234A] hover:bg-[#FDF2F5] flex items-center gap-2"
+                            className="w-full min-h-[38px] px-3 rounded-lg text-left text-xs font-semibold text-[#B4234A] dark:text-[#FF7B9C] hover:bg-[#FDF2F5] dark:hover:bg-[#2F1722] flex items-center gap-2"
                           >
                             <ShieldBan className="w-3.5 h-3.5" aria-hidden="true" />
                             <span>
@@ -186,7 +193,7 @@ export const ProfileView: React.FC = () => {
             </div>
 
             {profileUser.bio && (
-              <p className="text-sm text-[#39243B] leading-relaxed max-w-xl">
+              <p className="text-sm text-[#39243B] dark:text-[#EADEE9] leading-relaxed max-w-xl">
                 {profileUser.bio}
               </p>
             )}
@@ -194,24 +201,24 @@ export const ProfileView: React.FC = () => {
             {/* Counts */}
             <div className="flex flex-wrap items-center gap-6 pt-1 text-sm">
               <div>
-                <span className="font-bold text-[#39243B] tabular-nums">
+                <span className="font-bold text-[#39243B] dark:text-[#F6EFF8] tabular-nums">
                   {formatCompactCount(userPosts.length)}
                 </span>{' '}
-                <span className="text-[#68556B]">
+                <span className="text-[#68556B] dark:text-[#B7A6BD]">
                   {userPosts.length === 1 ? 'post' : 'posts'}
                 </span>
               </div>
               <div>
-                <span className="font-bold text-[#39243B] tabular-nums">
+                <span className="font-bold text-[#39243B] dark:text-[#F6EFF8] tabular-nums">
                   {formatCompactCount(profileUser.followersCount)}
                 </span>{' '}
-                <span className="text-[#68556B]">followers</span>
+                <span className="text-[#68556B] dark:text-[#B7A6BD]">followers</span>
               </div>
               <div>
-                <span className="font-bold text-[#39243B] tabular-nums">
+                <span className="font-bold text-[#39243B] dark:text-[#F6EFF8] tabular-nums">
                   {formatCompactCount(profileUser.followingCount)}
                 </span>{' '}
-                <span className="text-[#68556B]">following</span>
+                <span className="text-[#68556B] dark:text-[#B7A6BD]">following</span>
               </div>
             </div>
           </div>
@@ -221,7 +228,7 @@ export const ProfileView: React.FC = () => {
       {/* Grid Tabs */}
       <div className="space-y-4">
         <div
-          className="flex items-center gap-1 border-b border-[#E5DCE9]"
+          className="flex items-center gap-1 border-b border-[#E5DCE9] dark:border-[#2E2436]"
           role="tablist"
           aria-label="Profile media sections"
         >
@@ -232,8 +239,8 @@ export const ProfileView: React.FC = () => {
             onClick={() => setTab('posts')}
             className={`min-h-[42px] px-4 text-xs font-semibold inline-flex items-center gap-1.5 border-b-2 transition-colors ${
               tab === 'posts'
-                ? 'border-[#A74695] text-[#39243B]'
-                : 'border-transparent text-[#68556B] hover:text-[#39243B]'
+                ? 'border-[#A74695] dark:border-[#FF78C8] text-[#39243B] dark:text-[#F6EFF8]'
+                : 'border-transparent text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]'
             }`}
           >
             <Grid className="w-4 h-4" aria-hidden="true" />
@@ -247,8 +254,8 @@ export const ProfileView: React.FC = () => {
             onClick={() => setTab('reels')}
             className={`min-h-[42px] px-4 text-xs font-semibold inline-flex items-center gap-1.5 border-b-2 transition-colors ${
               tab === 'reels'
-                ? 'border-[#A74695] text-[#39243B]'
-                : 'border-transparent text-[#68556B] hover:text-[#39243B]'
+                ? 'border-[#A74695] dark:border-[#FF78C8] text-[#39243B] dark:text-[#F6EFF8]'
+                : 'border-transparent text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]'
             }`}
           >
             <Film className="w-4 h-4" aria-hidden="true" />
@@ -263,8 +270,8 @@ export const ProfileView: React.FC = () => {
               onClick={() => setTab('saved')}
               className={`min-h-[42px] px-4 text-xs font-semibold inline-flex items-center gap-1.5 border-b-2 transition-colors ${
                 tab === 'saved'
-                  ? 'border-[#A74695] text-[#39243B]'
-                  : 'border-transparent text-[#68556B] hover:text-[#39243B]'
+                  ? 'border-[#A74695] dark:border-[#FF78C8] text-[#39243B] dark:text-[#F6EFF8]'
+                  : 'border-transparent text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]'
               }`}
             >
               <Bookmark className="w-4 h-4" aria-hidden="true" />
@@ -274,37 +281,46 @@ export const ProfileView: React.FC = () => {
         </div>
 
         {isBlocked ? (
-          <div className="rounded-2xl bg-white border border-[#E5DCE9] p-10 text-center space-y-2">
-            <p className="font-display text-base font-bold text-[#39243B]">
+          <div className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] p-10 text-center space-y-2">
+            <p className="font-display text-base font-bold text-[#39243B] dark:text-[#F6EFF8]">
               You blocked @{profileUser.username}
             </p>
-            <p className="text-xs text-[#68556B]">
+            <p className="text-xs text-[#68556B] dark:text-[#B7A6BD]">
               Posts from this account are hidden. Unblock from the menu above if you change your mind.
             </p>
           </div>
         ) : displayedGrid.length === 0 ? (
-          <div className="rounded-2xl bg-white border border-[#E5DCE9] p-10 text-center space-y-3">
-            <p className="font-display text-base font-bold text-[#39243B]">
+          <div className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] p-10 text-center space-y-3">
+            <p className="font-display text-base font-bold text-[#39243B] dark:text-[#F6EFF8]">
               {tab === 'saved'
                 ? 'No saved posts yet'
                 : tab === 'reels'
                   ? 'No Reels posted yet'
                   : 'No posts yet'}
             </p>
-            <p className="text-sm text-[#68556B]">
+            <p className="text-sm text-[#68556B] dark:text-[#B7A6BD]">
               {isOwnProfile && tab === 'posts'
                 ? 'Share your first photo or short video to fill your grid.'
                 : 'Nothing to show in this tab right now.'}
             </p>
-            {isOwnProfile && tab !== 'saved' && (
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {isOwnProfile && tab !== 'saved' && (
+                <button
+                  type="button"
+                  onClick={() => openCreateModal(tab === 'reels' ? 'reel' : 'post')}
+                  className="min-h-[40px] px-4 rounded-xl bg-[#39243B] dark:bg-[#A74695] text-white text-xs font-semibold hover:bg-[#4E3351] dark:hover:bg-[#913980] transition-colors"
+                >
+                  {tab === 'reels' ? 'Create Reel' : 'Create your first post'}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => openCreateModal(tab === 'reels' ? 'reel' : 'post')}
-                className="min-h-[40px] px-4 rounded-xl bg-[#39243B] text-white text-xs font-semibold hover:bg-[#4E3351]"
+                onClick={() => setDestination('explore')}
+                className="min-h-[40px] px-4 rounded-xl border border-[#E5DCE9] dark:border-[#3A2D45] bg-[#F8F5FA] dark:bg-[#231C29] text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#EFE7F5] dark:hover:bg-[#2E2436] transition-colors"
               >
-                {tab === 'reels' ? 'Create Reel' : 'Create Post'}
+                Explore creators
               </button>
-            )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3.5">
@@ -316,14 +332,24 @@ export const ProfileView: React.FC = () => {
                 aria-label={`Open ${item.mediaType === 'video' ? 'Reel' : 'post'}: ${
                   item.altText || item.caption || 'grid item'
                 }`}
-                className="group relative aspect-square rounded-2xl overflow-hidden bg-[#F3EEF7] border border-[#E5DCE9]"
+                className="group relative aspect-square rounded-2xl overflow-hidden bg-[#F3EEF7] dark:bg-[#231C29] border border-[#E5DCE9] dark:border-[#2E2436]"
               >
-                <ResilientImage
-                  src={item.mediaType === 'video' ? item.posterUrl || item.mediaUrl : item.mediaUrl}
-                  alt={item.altText || item.caption || 'Post thumbnail'}
-                  objectPosition={item.objectPosition}
-                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
-                />
+                {item.mediaType === 'video' ? (
+                  <ResilientVideoThumbnail
+                    src={item.mediaUrl}
+                    posterUrl={item.posterUrl}
+                    alt={item.altText || item.caption || 'Reel thumbnail'}
+                    objectPosition={item.objectPosition}
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
+                  />
+                ) : (
+                  <ResilientImage
+                    src={item.mediaUrl}
+                    alt={item.altText || item.caption || 'Post thumbnail'}
+                    objectPosition={item.objectPosition}
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-200"
+                  />
+                )}
                 {item.mediaType === 'video' && (
                   <span className="absolute top-2.5 right-2.5 w-7 h-7 rounded-lg bg-[#39243B]/75 text-white flex items-center justify-center">
                     <Film className="w-4 h-4" aria-hidden="true" />

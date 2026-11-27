@@ -11,6 +11,18 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
     function isNonEmptyString(val, maxLen) {
       return val is string && val.size() > 0 && val.size() <= maxLen;
     }
@@ -19,160 +31,227 @@ service cloud.firestore {
       return val is string && val.size() <= maxLen;
     }
 
-    // Users collection: public readable profiles; only owner can create/update their profile
+    function isSafeMediaRef(val) {
+      return val is string
+        && val.size() > 0
+        && val.size() <= 500
+        && (val.matches('^/assets/.*') || val.matches('^https://.*'));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'username',
+          'displayName',
+          'bio',
+          'avatarUrl',
+          'followersCount',
+          'followingCount',
+          'postsCount',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'username',
+          'displayName',
+          'bio',
+          'avatarUrl',
+          'avatarPosition',
+          'followersCount',
+          'followingCount',
+          'postsCount',
+          'createdAt'
+        ])
+        && data.uid == userId
+        && isNonEmptyString(data.username, 30)
+        && data.username.matches('^[a-z0-9._]{3,30}$')
+        && isNonEmptyString(data.displayName, 60)
+        && data.displayName.size() >= 2
+        && isOptionalString(data.bio, 240)
+        && isSafeMediaRef(data.avatarUrl)
+        && (!('avatarPosition' in data) || isOptionalString(data.avatarPosition, 40))
+        && data.followersCount is int && data.followersCount >= 0
+        && data.followingCount is int && data.followingCount >= 0
+        && data.postsCount is int && data.postsCount >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidHashtagList(tags) {
+      return tags is list
+        && tags.size() <= 20
+        && (tags.size() == 0 || (tags[0] is string && tags[0].size() <= 50));
+    }
+
+    function isValidPost(data) {
+      return data.keys().hasAll([
+          'authorId',
+          'mediaType',
+          'mediaUrl',
+          'caption',
+          'altText',
+          'hashtags',
+          'likesCount',
+          'commentsCount',
+          'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'authorId',
+          'mediaType',
+          'mediaUrl',
+          'posterUrl',
+          'aspectRatio',
+          'objectPosition',
+          'caption',
+          'altText',
+          'hashtags',
+          'likesCount',
+          'commentsCount',
+          'createdAt'
+        ])
+        && data.authorId is string
+        && data.mediaType in ['image', 'video']
+        && isSafeMediaRef(data.mediaUrl)
+        && (!('posterUrl' in data) || data.posterUrl == null || isSafeMediaRef(data.posterUrl))
+        && (!('aspectRatio' in data) || data.aspectRatio in ['square', 'portrait', 'landscape'])
+        && (!('objectPosition' in data) || isOptionalString(data.objectPosition, 40))
+        && isOptionalString(data.caption, 1000)
+        && isOptionalString(data.altText, 300)
+        && isValidHashtagList(data.hashtags)
+        && data.likesCount is int && data.likesCount >= 0
+        && data.commentsCount is int && data.commentsCount >= 0
+        && data.createdAt is timestamp;
+    }
+
+    // Users collection: public display profiles (no PII); owner-only create/update
     match /users/{userId} {
-      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(userId);
       allow create: if isOwner(userId)
-        && request.resource.data.uid == userId
-        && isNonEmptyString(request.resource.data.username, 30)
-        && request.resource.data.username.matches('^[a-z0-9._]{3,30}$')
-        && isNonEmptyString(request.resource.data.displayName, 60)
-        && isOptionalString(request.resource.data.bio, 240);
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().followersCount == 0
+        && incoming().followingCount == 0
+        && incoming().postsCount == 0
+        && incoming().createdAt == request.time;
       allow update: if isOwner(userId)
-        && request.resource.data.uid == resource.data.uid
-        && isNonEmptyString(request.resource.data.username, 30)
-        && request.resource.data.username.matches('^[a-z0-9._]{3,30}$')
-        && isNonEmptyString(request.resource.data.displayName, 60)
-        && isOptionalString(request.resource.data.bio, 240);
+        && isValidId(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().followersCount == existing().followersCount
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'username',
+          'displayName',
+          'bio',
+          'avatarUrl',
+          'avatarPosition',
+          'followingCount',
+          'postsCount'
+        ]);
       allow delete: if false;
     }
 
-    // Posts collection: signed-in users can read; only author can create/delete/edit caption & altText
+    // Posts collection: signed-in users can read; owner-only edit/delete; atomic like/comment count sync
     match /posts/{postId} {
-      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(postId);
       allow create: if isSignedIn()
-        && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.mediaType in ['image', 'video']
-        && isNonEmptyString(request.resource.data.mediaUrl, 1000)
-        && isOptionalString(request.resource.data.caption, 1000)
-        && isOptionalString(request.resource.data.altText, 300)
-        && request.resource.data.createdAt == request.time;
-      allow update: if isSignedIn() && (
-        // Author updating caption or altText
-        (resource.data.authorId == request.auth.uid
-          && request.resource.data.authorId == resource.data.authorId
-          && isOptionalString(request.resource.data.caption, 1000)
-          && isOptionalString(request.resource.data.altText, 300))
-        // Note: likesCount / commentsCount should ideally be maintained via Cloud Functions;
-        // if updated client-side in a starter setup, restrict to single counter increments only:
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount'])
-            && request.resource.data.likesCount is int
-            && request.resource.data.likesCount >= 0
-            && (request.resource.data.likesCount == resource.data.likesCount + 1
-                || request.resource.data.likesCount == resource.data.likesCount - 1))
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['commentsCount'])
-            && request.resource.data.commentsCount is int
-            && request.resource.data.commentsCount >= 0
-            && request.resource.data.commentsCount == resource.data.commentsCount + 1)
-      );
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+        && isValidId(postId)
+        && isValidPost(incoming())
+        && incoming().authorId == request.auth.uid
+        && incoming().likesCount == 0
+        && incoming().commentsCount == 0
+        && incoming().createdAt == request.time;
+      allow update: if isSignedIn()
+        && isValidId(postId)
+        && isValidPost(incoming())
+        && incoming().authorId == existing().authorId
+        && incoming().createdAt == existing().createdAt
+        && (
+          // Author editing caption, altText, or hashtags only
+          (existing().authorId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['caption', 'altText', 'hashtags']))
+          // Atomic +1 like synced with likes/{uid} creation
+          || (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
+              && incoming().likesCount == existing().likesCount + 1
+              && !exists(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
+              && existsAfter(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid)))
+          // Atomic -1 unlike synced with likes/{uid} deletion
+          || (incoming().diff(existing()).affectedKeys().hasOnly(['likesCount'])
+              && incoming().likesCount == existing().likesCount - 1
+              && exists(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid))
+              && !existsAfter(/databases/$(database)/documents/posts/$(postId)/likes/$(request.auth.uid)))
+          // Comment count increment (+1)
+          || (incoming().diff(existing()).affectedKeys().hasOnly(['commentsCount'])
+              && incoming().commentsCount == existing().commentsCount + 1)
+        );
+      allow delete: if isSignedIn()
+        && isValidId(postId)
+        && existing().authorId == request.auth.uid;
 
       // Likes subcollection: document ID must equal the liking user's UID
       match /likes/{userId} {
-        allow read: if isSignedIn();
+        allow list: if isSignedIn();
+        allow get: if isSignedIn() && isValidId(userId);
         allow create: if isOwner(userId)
-          && request.resource.data.userId == userId
-          && request.resource.data.createdAt == request.time;
-        allow delete: if isOwner(userId);
+          && isValidId(postId)
+          && isValidId(userId)
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && incoming().keys().hasAll(['userId', 'createdAt'])
+          && incoming().keys().hasOnly(['userId', 'createdAt'])
+          && incoming().userId == userId
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(postId) && isValidId(userId);
       }
 
-      // Comments subcollection
+      // Comments subcollection: signed-in users can read & add comments; comment author or post owner can delete
       match /comments/{commentId} {
-        allow read: if isSignedIn();
+        allow list: if isSignedIn();
+        allow get: if isSignedIn() && isValidId(commentId);
         allow create: if isSignedIn()
-          && request.resource.data.authorId == request.auth.uid
-          && isNonEmptyString(request.resource.data.text, 500)
-          && request.resource.data.createdAt == request.time;
-        allow delete: if isSignedIn() && (
-          resource.data.authorId == request.auth.uid
-          || get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid
-        );
+          && isValidId(postId)
+          && isValidId(commentId)
+          && exists(/databases/$(database)/documents/posts/$(postId))
+          && incoming().keys().hasAll(['authorId', 'text', 'createdAt'])
+          && incoming().keys().hasOnly(['authorId', 'text', 'createdAt'])
+          && incoming().authorId == request.auth.uid
+          && isNonEmptyString(incoming().text, 500)
+          && incoming().createdAt == request.time;
+        allow update: if false;
+        allow delete: if isSignedIn()
+          && isValidId(postId)
+          && isValidId(commentId)
+          && (
+            existing().authorId == request.auth.uid
+            || get(/databases/$(database)/documents/posts/$(postId)).data.authorId == request.auth.uid
+          );
       }
     }
 
     // Follows collection: deterministic ID `{followerId}_{followingId}`
     match /follows/{followId} {
-      allow read: if isSignedIn();
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && isValidId(followId);
       allow create: if isSignedIn()
-        && request.resource.data.followerId == request.auth.uid
-        && request.resource.data.followingId is string
-        && request.resource.data.followingId != request.auth.uid
-        && followId == request.auth.uid + '_' + request.resource.data.followingId
-        && request.resource.data.createdAt == request.time;
-      allow delete: if isSignedIn() && resource.data.followerId == request.auth.uid;
+        && isValidId(followId)
+        && incoming().keys().hasAll(['followerId', 'followingId', 'createdAt'])
+        && incoming().keys().hasOnly(['followerId', 'followingId', 'createdAt'])
+        && incoming().followerId == request.auth.uid
+        && incoming().followingId is string
+        && isValidId(incoming().followingId)
+        && incoming().followingId != request.auth.uid
+        && followId == request.auth.uid + '_' + incoming().followingId
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isSignedIn()
+        && isValidId(followId)
+        && existing().followerId == request.auth.uid;
     }
 
-    // Stories collection: 24-hour expiring items
-    match /stories/{storyId} {
-      allow read: if isSignedIn() && resource.data.expiresAt > request.time;
-      allow create: if isSignedIn()
-        && request.resource.data.authorId == request.auth.uid
-        && request.resource.data.mediaType in ['image', 'video']
-        && isNonEmptyString(request.resource.data.mediaUrl, 1000)
-        && isOptionalString(request.resource.data.caption, 200)
-        && request.resource.data.createdAt == request.time
-        && request.resource.data.expiresAt > request.time;
-      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
-    }
-
-    // Direct Message conversations & messages: participant-only access
-    match /conversations/{conversationId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
-      allow create: if isSignedIn()
-        && request.auth.uid in request.resource.data.participants
-        && request.resource.data.participants is list
-        && request.resource.data.participants.size() == 2;
-      allow update: if isSignedIn()
-        && request.auth.uid in resource.data.participants
-        && request.resource.data.participants == resource.data.participants;
-
-      match /messages/{messageId} {
-        allow read: if isSignedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants;
-        allow create: if isSignedIn()
-          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participants
-          && request.resource.data.senderId == request.auth.uid
-          && isNonEmptyString(request.resource.data.text, 1000)
-          && request.resource.data.createdAt == request.time;
-      }
-    }
-
-    // In-app notifications: recipient-only read & mark-as-read; actor creates on interaction
-    match /notifications/{notificationId} {
-      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.actorId == request.auth.uid
-        && request.resource.data.recipientId is string
-        && request.resource.data.recipientId != request.auth.uid
-        && request.resource.data.type in ['like', 'comment', 'follow', 'message']
-        && request.resource.data.read == false
-        && request.resource.data.createdAt == request.time;
-      allow update: if isSignedIn()
-        && resource.data.recipientId == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
-        && request.resource.data.read is bool;
-      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
-    }
-
-    // Safety: reports & blocks (private to creating user)
-    match /reports/{reportId} {
-      allow read: if isSignedIn() && resource.data.reporterId == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.reporterId == request.auth.uid
-        && request.resource.data.targetType in ['post', 'user']
-        && isNonEmptyString(request.resource.data.reason, 200)
-        && request.resource.data.createdAt == request.time;
-    }
-
-    match /blocks/{blockId} {
-      allow read: if isSignedIn() && resource.data.blockerId == request.auth.uid;
-      allow create: if isSignedIn()
-        && request.resource.data.blockerId == request.auth.uid
-        && request.resource.data.blockedUserId is string
-        && request.resource.data.blockedUserId != request.auth.uid
-        && blockId == request.auth.uid + '_' + request.resource.data.blockedUserId
-        && request.resource.data.createdAt == request.time;
-      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+    // Default deny for all other paths (Stories, DMs, Notifications, Reports/Blocks run locally in Demo Mode)
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

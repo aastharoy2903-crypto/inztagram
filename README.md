@@ -1,16 +1,24 @@
 # Inztagram
 
-A calm, responsive social photo and short-video sharing web application built with React, TypeScript, Tailwind CSS, and optional Firebase (Authentication, Firestore, and Cloud Storage).
+A calm, responsive social photo and short-video portfolio demo built with React, TypeScript, Tailwind CSS, and optional no-cost **Firebase Spark** integration (Firebase Authentication + Cloud Firestore).
 
 ## Features
 
-- **Home Feed & Stories**: Chronological feed of followed accounts, 24-hour expiring Stories viewer (keyboard + touch navigation), likes, comments, bookmarks, and native Web Share / copy-link sharing.
-- **Reels**: Vertical short-video feed with muted-by-default playback, play/pause, mute/unmute, keyboard navigation, and accessible video fallbacks.
-- **Explore & Search**: Real-time search across users (username/display name) and `#hashtags`, plus a discovery media grid.
-- **Direct Messages**: Conversation list and two-pane chat view with timestamps, unread tracking, and real-time Firestore sync when configured.
-- **Notifications**: In-app notifications for likes, comments, follows, and messages with mark-as-read actions.
-- **Profiles & Post Creation**: Profile grids, follow/unfollow, owner-only profile editing, and photo/video/story publishing with upload progress and alt text.
-- **Demo Mode**: Works immediately with realistic local sample data if Firebase environment variables are not set, clearly labeled as browser-only demo storage.
+- **Populated Feed & Sample Distinction**: Works immediately in **Demo Mode** (`localStorage`) without any environment variables, and merges clearly labeled **Sample** creators, posts, Reels, and Stories into newly signed-in Firebase accounts so no user lands on an empty feed.
+- **Real-Time Profile Search**: Instant search in the Navigation bar filters across user handles and display names, with direct click-through to profiles.
+- **Trending on Inztagram**: Calculated strictly from `#hashtags` in posts available inside this app over the last 24 hours (labeled **Demo trends** when running in Demo Mode).
+- **Reels & Resilient Media Fallbacks**: Vertical short-video feed with muted-by-default playback, play/pause, mute/unmute, keyboard navigation, and automatic poster-image fallbacks if a video preview cannot decode.
+- **Firebase Spark Persistence (when configured)**:
+  - **Firebase Authentication**: Email/password sign-up, sign-in, and password reset.
+  - **Cloud Firestore**: Persists user profiles (`/users/{uid}`), posts & Reels (`/posts/{postId}` referencing bundled `/assets/aistudio/*` media), likes (`/posts/{postId}/likes/{uid}`), comments (`/posts/{postId}/comments/{commentId}`), and follows (`/follows/{followerId_followingId}`).
+- **Browser-Local Demo Features**: Direct Messages, Notifications, 24h Stories, Saved bookmarks, and Safety reports/blocks run locally in browser storage (`localStorage`) with clear demo labeling.
+
+## No-Cost Spark Plan Notice (No Firebase Storage)
+
+This project intentionally does **not** use Firebase Cloud Storage, Cloud Functions, or any billable GCP services:
+- Uploaded media files are **not** supported when connected to Firebase.
+- Instead, users create posts, Reels, and profile avatars using the bundled local images and `.mp4` clips under `/public/assets/aistudio/`, saving only safe relative media paths (`/assets/aistudio/...`) in Firestore.
+- When running in unconfigured Demo Mode, local file previews are supported inside the browser only.
 
 ## Running Locally
 
@@ -23,38 +31,28 @@ The development server runs on `http://localhost:3000`.
 
 ## Environment Variables (Firebase Setup)
 
-Copy `.env.example` to `.env` and fill in your Firebase Web App credentials to switch from Demo Mode to live Firebase persistence:
+Copy `.env.example` to `.env` and fill in your Firebase Web App credentials to enable live Firebase Auth & Firestore alongside the populated sample feed:
 
 | Variable | Description |
 | --- | --- |
 | `VITE_FIREBASE_API_KEY` | Firebase Web API Key |
 | `VITE_FIREBASE_AUTH_DOMAIN` | Auth domain (e.g. `your-project.firebaseapp.com`) |
 | `VITE_FIREBASE_PROJECT_ID` | Firebase Project ID |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Cloud Storage bucket (e.g. `your-project.appspot.com`) |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | Cloud Messaging sender ID |
 | `VITE_FIREBASE_APP_ID` | Firebase Web App ID |
 
 ## Firebase Console Checklist
 
-1. **Authentication**: Enable **Email/Password** sign-in provider in Firebase Console -> Authentication -> Sign-in method.
-2. **Firestore Database**: Create a Firestore database and deploy `firestore.rules`:
+1. **Authentication**: Enable the **Email/Password** sign-in provider in Firebase Console &rarr; Authentication &rarr; Sign-in method.
+2. **Cloud Firestore**: Create a Firestore database on the **Spark (no-cost)** plan and deploy the hardened owner-restricted security rules in `firestore.rules`:
    ```bash
    firebase deploy --only firestore:rules
    ```
-3. **Cloud Storage**: Enable Firebase Storage and deploy `storage.rules` for photo, video, and story uploads:
-   ```bash
-   firebase deploy --only storage
-   ```
 
-## Data Model
+## Firestore Data Model & Security Rules
 
-- `users/{uid}`: `{ uid, username, displayName, bio, avatarUrl, postsCount, followersCount, followingCount, createdAt }`
-- `posts/{postId}`: `{ authorId, mediaType, mediaUrl, caption, altText, hashtags, likesCount, commentsCount, createdAt }`
-  - `posts/{postId}/likes/{uid}`: `{ userId, createdAt }`
-  - `posts/{postId}/comments/{commentId}`: `{ authorId, text, createdAt }`
-- `follows/{followerId_followingId}`: `{ followerId, followingId, createdAt }`
-- `stories/{storyId}`: `{ authorId, mediaType, mediaUrl, caption, altText, createdAt, expiresAt }`
-- `conversations/{conversationId}`: `{ participants, lastMessageText, lastMessageAt, updatedAt }`
-  - `conversations/{conversationId}/messages/{messageId}`: `{ senderId, text, createdAt }`
-- `notifications/{notificationId}`: `{ recipientId, actorId, type, postId?, previewText?, read, createdAt }`
-- `reports/{reportId}` & `blocks/{blockerId_blockedUserId}`: User-owned safety records.
+- `users/{uid}`: Owner-only writes (`isOwner(uid)`), public read for signed-in users, strict schema & media reference validation.
+- `posts/{postId}`: Author-only creation and deletion (`authorId == request.auth.uid`), owner-only caption/alt edits, and atomic batch updates for `likesCount` / `commentsCount`.
+  - `posts/{postId}/likes/{uid}`: Owner-only like/unlike validated via atomic batch (`existsAfter` / `!existsAfter`).
+  - `posts/{postId}/comments/{commentId}`: Signed-in author-validated comments.
+- `follows/{followerId_followingId}`: Deterministic ID validated to `followerId == request.auth.uid`.

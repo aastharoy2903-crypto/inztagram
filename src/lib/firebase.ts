@@ -1,13 +1,11 @@
 import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
+import { doc, getDocFromServer, getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY?.trim() || '',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN?.trim() || '',
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID?.trim() || '',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET?.trim() || '',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim() || '',
   appId: import.meta.env.VITE_FIREBASE_APP_ID?.trim() || '',
 };
@@ -22,25 +20,93 @@ export const isFirebaseConfigured = Boolean(
     !isPlaceholder(firebaseConfig.appId)
 );
 
-export const isStorageConfigured = Boolean(
-  isFirebaseConfigured && !isPlaceholder(firebaseConfig.storageBucket)
-);
+export const firebaseProjectId = isFirebaseConfigured ? firebaseConfig.projectId : '';
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
-let storage: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured) {
   app = getApps().length > 0 ? getApps()[0] : initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
-  if (isStorageConfigured) {
-    storage = getStorage(app);
-  }
+
+  // Non-blocking startup connectivity check (Spark-plan Auth + Firestore only; no Storage)
+  void (async () => {
+    try {
+      await getDocFromServer(doc(db, 'test', 'connection'));
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('the client is offline')) {
+        console.warn('Firestore unreachable or offline; check Firebase configuration.');
+      }
+    }
+  })();
 }
 
-export { app, auth, db, storage };
+export { app, auth, db };
+
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function buildFirestoreErrorInfo(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): FirestoreErrorInfo {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo:
+        auth?.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  return errInfo;
+}
+
+export function handleFirestoreError(
+  error: unknown,
+  operationType: OperationType,
+  path: string | null
+): never {
+  const errInfo = buildFirestoreErrorInfo(error, operationType, path);
+  console.error('Firestore Error:', JSON.stringify(errInfo));
+  throw new Error(
+    error instanceof Error ? error.message : 'Unable to complete Firestore request.'
+  );
+}
 
 export function mapFirebaseAuthError(error: unknown): string {
   const code =
@@ -65,6 +131,8 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Too many attempts. Please wait a moment before trying again.';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Email/Password sign-in is not enabled in Firebase Authentication yet.';
     default:
       return error instanceof Error
         ? error.message

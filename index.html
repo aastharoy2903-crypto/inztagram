@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Inztagram — Share moments in full bloom</title>
+    <link rel="icon" type="image/png" href="/assets/aistudio/image_25e96cc2.png" />
     <meta
       name="description"
       content="A calm, botanical-inspired social photo and short-video sharing app with feeds, Reels, Stories, profiles, direct messages, and notifications."
@@ -15,6 +16,18 @@
     />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('inztagram_theme_v1');
+          var prefersDark =
+            window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

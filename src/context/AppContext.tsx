@@ -14,7 +14,6 @@ import {
   signOut as firebaseSignOut,
 } from 'firebase/auth';
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
@@ -28,17 +27,15 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytesResumable } from 'firebase/storage';
 import {
   auth,
   db,
+  handleFirestoreError,
   isFirebaseConfigured,
-  isStorageConfigured,
   mapFirebaseAuthError,
-  storage,
+  OperationType,
 } from '../lib/firebase';
 import {
   DEMO_COMMENTS,
@@ -53,6 +50,7 @@ import {
 } from '../data/demoSeed';
 import type {
   AppDestination,
+  ChatThemeId,
   Conversation,
   DirectMessage,
   MediaType,
@@ -61,11 +59,14 @@ import type {
   PostComment,
   SafetyReport,
   Story,
+  ThemeMode,
   UserProfile,
 } from '../types/inztagram';
 import { extractHashtags, normalizeUsername, validateUsername } from '../utils/formatters';
 
-const DEMO_STORAGE_KEY = 'inztagram_demo_state_v2';
+const DEMO_STORAGE_KEY = 'inztagram_demo_state_v4';
+const FB_LOCAL_OVERLAY_PREFIX = 'inztagram_fb_local_v1_';
+const THEME_STORAGE_KEY = 'inztagram_theme_v1';
 
 interface DemoPersistedState {
   currentUid: string;
@@ -82,6 +83,31 @@ interface DemoPersistedState {
   notifications: NotificationItem[];
   blockedUserIds: string[];
   reports: SafetyReport[];
+  chatThemes?: Record<string, ChatThemeId>;
+}
+
+interface FbLocalOverlayState {
+  sampleLikedPostIds: string[];
+  sampleComments: PostComment[];
+  sampleFollowingIds: string[];
+  savedPostIds: string[];
+  seenStoryIds: string[];
+  localStories: Story[];
+  conversations: Conversation[];
+  messages: DirectMessage[];
+  notifications: NotificationItem[];
+  blockedUserIds: string[];
+  reports: SafetyReport[];
+  chatThemes?: Record<string, ChatThemeId>;
+}
+
+function getFreshSampleStories(): Story[] {
+  const nowMs = Date.now();
+  return DEMO_STORIES.map((s, idx) => ({
+    ...s,
+    createdAt: nowMs - (idx + 1) * 60 * 60 * 1000,
+    expiresAt: nowMs + (23 - idx) * 60 * 60 * 1000,
+  }));
 }
 
 function loadDemoState(): DemoPersistedState {
@@ -98,13 +124,16 @@ function loadDemoState(): DemoPersistedState {
           likedPostIds: parsed.likedPostIds || ['post_hydrangea_palette'],
           savedPostIds: parsed.savedPostIds || ['post_hydrangea_palette'],
           followingIds: parsed.followingIds || DEMO_FOLLOWING_IDS,
-          stories: (parsed.stories || DEMO_STORIES).filter((s) => s.expiresAt > Date.now()),
+          stories: (parsed.stories || getFreshSampleStories()).filter(
+            (s) => s.expiresAt > Date.now()
+          ),
           seenStoryIds: parsed.seenStoryIds || [],
           conversations: parsed.conversations || DEMO_CONVERSATIONS,
           messages: parsed.messages || DEMO_MESSAGES,
           notifications: parsed.notifications || DEMO_NOTIFICATIONS,
           blockedUserIds: parsed.blockedUserIds || [],
           reports: parsed.reports || [],
+          chatThemes: parsed.chatThemes || {},
         };
       }
     }
@@ -120,14 +149,86 @@ function loadDemoState(): DemoPersistedState {
     likedPostIds: ['post_hydrangea_palette'],
     savedPostIds: ['post_hydrangea_palette'],
     followingIds: DEMO_FOLLOWING_IDS,
-    stories: DEMO_STORIES,
+    stories: getFreshSampleStories(),
     seenStoryIds: [],
     conversations: DEMO_CONVERSATIONS,
     messages: DEMO_MESSAGES,
     notifications: DEMO_NOTIFICATIONS,
     blockedUserIds: [],
     reports: [],
+    chatThemes: {},
   };
+}
+
+function defaultFbLocalOverlay(uid: string): FbLocalOverlayState {
+  const nowMs = Date.now();
+  return {
+    sampleLikedPostIds: [],
+    sampleComments: [],
+    sampleFollowingIds: [],
+    savedPostIds: [],
+    seenStoryIds: [],
+    localStories: [],
+    conversations: [
+      {
+        id: `conv_welcome_${uid}`,
+        participants: [uid, 'demo_claire'],
+        lastMessageText: 'Welcome to Inztagram! Sample DMs run locally in this browser.',
+        lastMessageAt: nowMs - 20 * 60 * 1000,
+        unreadBy: [uid],
+      },
+    ],
+    messages: [
+      {
+        id: `m_welcome_${uid}`,
+        conversationId: `conv_welcome_${uid}`,
+        senderId: 'demo_claire',
+        text: 'Welcome to Inztagram! Sample DMs run locally in this browser.',
+        createdAt: nowMs - 20 * 60 * 1000,
+      },
+    ],
+    notifications: [
+      {
+        id: `n_welcome_${uid}`,
+        recipientId: uid,
+        actorId: 'demo_elena',
+        type: 'follow',
+        previewText: 'Sample activity preview (stored in this browser only)',
+        read: false,
+        createdAt: nowMs - 15 * 60 * 1000,
+      },
+    ],
+    blockedUserIds: [],
+    reports: [],
+    chatThemes: {},
+  };
+}
+
+function loadFbLocalOverlay(uid: string): FbLocalOverlayState {
+  try {
+    const raw = localStorage.getItem(`${FB_LOCAL_OVERLAY_PREFIX}${uid}`);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<FbLocalOverlayState>;
+      const base = defaultFbLocalOverlay(uid);
+      return {
+        sampleLikedPostIds: parsed.sampleLikedPostIds || base.sampleLikedPostIds,
+        sampleComments: parsed.sampleComments || base.sampleComments,
+        sampleFollowingIds: parsed.sampleFollowingIds || base.sampleFollowingIds,
+        savedPostIds: parsed.savedPostIds || base.savedPostIds,
+        seenStoryIds: parsed.seenStoryIds || base.seenStoryIds,
+        localStories: (parsed.localStories || []).filter((s) => s.expiresAt > Date.now()),
+        conversations: parsed.conversations || base.conversations,
+        messages: parsed.messages || base.messages,
+        notifications: parsed.notifications || base.notifications,
+        blockedUserIds: parsed.blockedUserIds || base.blockedUserIds,
+        reports: parsed.reports || base.reports,
+        chatThemes: parsed.chatThemes || {},
+      };
+    }
+  } catch {
+    // ignore corrupt localStorage
+  }
+  return defaultFbLocalOverlay(uid);
 }
 
 function toMillis(value: unknown): number {
@@ -184,9 +285,16 @@ export interface CreateMediaInput {
   mediaType: MediaType;
   file?: File | null;
   presetUrl?: string;
+  posterUrl?: string;
   caption: string;
   altText: string;
   onProgress?: (pct: number) => void;
+}
+
+interface FollowDoc {
+  id: string;
+  followerId: string;
+  followingId: string;
 }
 
 interface AppContextValue {
@@ -208,9 +316,17 @@ interface AppContextValue {
   seenStoryIds: Set<string>;
   conversations: Conversation[];
   messagesByConversation: Record<string, DirectMessage[]>;
+  chatThemesByConv: Record<string, ChatThemeId>;
   notifications: NotificationItem[];
   unreadNotificationsCount: number;
   unreadMessagesCount: number;
+
+  // Theme & Visual FX
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
+  heartBurstTick: number;
+  triggerHeartBurst: () => void;
 
   // Navigation & UI state
   destination: AppDestination;
@@ -260,6 +376,7 @@ interface AppContextValue {
   createMediaItem: (input: CreateMediaInput) => Promise<void>;
   deletePost: (postId: string) => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
+  loadCommentsForPost: (postId: string) => Promise<void>;
   addComment: (postId: string, text: string) => Promise<void>;
   toggleFollow: (targetUid: string) => Promise<void>;
   toggleSavePost: (postId: string) => void;
@@ -267,6 +384,7 @@ interface AppContextValue {
   startConversation: (otherUid: string) => Promise<string>;
   sendMessage: (conversationId: string, text: string) => Promise<void>;
   markConversationRead: (conversationId: string) => Promise<void>;
+  setConversationTheme: (conversationId: string, themeId: ChatThemeId) => void;
   markNotificationRead: (notificationId: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   reportContent: (params: {
@@ -289,8 +407,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [demoState, setDemoState] = useState<DemoPersistedState>(() => loadDemoState());
   const [demoSignedIn, setDemoSignedIn] = useState<boolean>(() => !isFirebaseConfigured);
 
-  // Firebase state
+  // Firebase Auth & Firestore state
   const [fbAuthUid, setFbAuthUid] = useState<string | null>(null);
+  const [fbAuthEmail, setFbAuthEmail] = useState<string | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState<boolean>(isFirebaseConfigured);
   const [isLoadingData, setIsLoadingData] = useState<boolean>(false);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -299,21 +418,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [fbPosts, setFbPosts] = useState<Post[]>([]);
   const [fbCommentsByPost, setFbCommentsByPost] = useState<Record<string, PostComment[]>>({});
   const [fbLikedPostIds, setFbLikedPostIds] = useState<string[]>([]);
-  const [fbSavedPostIds, setFbSavedPostIds] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem('inztagram_fb_saved');
-      return saved ? (JSON.parse(saved) as string[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [fbFollowingIds, setFbFollowingIds] = useState<string[]>([]);
-  const [fbBlockedUserIds, setFbBlockedUserIds] = useState<string[]>([]);
-  const [fbStories, setFbStories] = useState<Story[]>([]);
-  const [fbSeenStoryIds, setFbSeenStoryIds] = useState<string[]>([]);
-  const [fbConversations, setFbConversations] = useState<Conversation[]>([]);
-  const [fbMessagesByConv, setFbMessagesByConv] = useState<Record<string, DirectMessage[]>>({});
-  const [fbNotifications, setFbNotifications] = useState<NotificationItem[]>([]);
+  const [fbFollowDocs, setFbFollowDocs] = useState<FollowDoc[]>([]);
+  const [fbLocalOverlay, setFbLocalOverlay] = useState<FbLocalOverlayState>(() =>
+    defaultFbLocalOverlay('guest')
+  );
 
   // Navigation & UI state
   const [destination, setDestination] = useState<AppDestination>('home');
@@ -326,6 +434,45 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [createDefaultKind, setCreateDefaultKind] = useState<'post' | 'reel' | 'story'>('post');
   const [isSetupGuideOpen, setIsSetupGuideOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Light / Dark theme synced to <html> class & localStorage
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'dark' || saved === 'light') return saved;
+      if (
+        typeof window !== 'undefined' &&
+        window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: dark)').matches
+      ) {
+        return 'dark';
+      }
+    } catch {
+      // ignore localStorage read errors
+    }
+    return 'light';
+  });
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', theme === 'dark');
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // ignore localStorage write errors
+    }
+  }, [theme]);
+
+  const toggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  // Small heart bubbles trigger
+  const [heartBurstTick, setHeartBurstTick] = useState<number>(0);
+  const triggerHeartBurst = useCallback(() => {
+    setHeartBurstTick((prev) => prev + 1);
+  }, []);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -346,6 +493,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [demoState]);
 
+  // Persist Firebase local overlay (saved bookmarks, sample interactions, local DMs/notifications)
+  useEffect(() => {
+    if (!fbAuthUid) return;
+    try {
+      localStorage.setItem(
+        `${FB_LOCAL_OVERLAY_PREFIX}${fbAuthUid}`,
+        JSON.stringify(fbLocalOverlay)
+      );
+    } catch {
+      // Ignore quota errors
+    }
+  }, [fbAuthUid, fbLocalOverlay]);
+
   // Firebase Auth listener
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
@@ -353,16 +513,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFbAuthUid(user ? user.uid : null);
       if (user) {
+        setFbAuthUid(user.uid);
+        setFbAuthEmail(user.email || null);
+        setFbLocalOverlay(loadFbLocalOverlay(user.uid));
         setInDemoSession(false);
+      } else {
+        setFbAuthUid(null);
+        setFbAuthEmail(null);
       }
       setIsLoadingAuth(false);
     });
     return () => unsubscribe();
   }, []);
 
-  // Firebase Firestore real-time subscriptions when authenticated
+  // Ensure an authenticated Firebase user always has a Firestore /users/{uid} profile doc
+  useEffect(() => {
+    if (mode !== 'firebase' || !db || !fbAuthUid) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const userRef = doc(db, 'users', fbAuthUid);
+        const snap = await getDoc(userRef);
+        if (!snap.exists() && !cancelled) {
+          const emailPrefix = (fbAuthEmail || 'member').split('@')[0];
+          const baseUsername = normalizeUsername(emailPrefix) || 'member';
+          const safeUsername =
+            baseUsername.length >= 3
+              ? `${baseUsername.slice(0, 24)}_${fbAuthUid.slice(0, 4).toLowerCase()}`.slice(0, 30)
+              : `member_${fbAuthUid.slice(0, 6).toLowerCase()}`;
+          await setDoc(userRef, {
+            uid: fbAuthUid,
+            username: safeUsername,
+            displayName: emailPrefix.slice(0, 60) || 'Inztagram Member',
+            bio: 'New on Inztagram.',
+            avatarUrl: '/assets/aistudio/image_251618e5.png',
+            avatarPosition: '50% 35%',
+            followersCount: 0,
+            followingCount: 0,
+            postsCount: 0,
+            createdAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.warn(
+          'Profile hydration check failed:',
+          err instanceof Error ? err.message : String(err)
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mode, fbAuthUid, fbAuthEmail]);
+
+  // Firebase Firestore real-time subscriptions when authenticated (users, posts, follows)
   useEffect(() => {
     if (mode !== 'firebase' || !db || !fbAuthUid) {
       return;
@@ -385,11 +590,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               username: String(data.username || 'user'),
               displayName: String(data.displayName || 'Inztagram Member'),
               bio: String(data.bio || ''),
-              avatarUrl: String(data.avatarUrl || '/samples/avatar-you.svg'),
+              avatarUrl: String(data.avatarUrl || '/assets/aistudio/image_251618e5.png'),
+              avatarPosition: data.avatarPosition ? String(data.avatarPosition) : undefined,
               followersCount: Number(data.followersCount || 0),
               followingCount: Number(data.followingCount || 0),
               postsCount: Number(data.postsCount || 0),
               createdAt: toMillis(data.createdAt),
+              isSample: false,
             };
           });
           setFbUsers(list);
@@ -414,24 +621,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               authorId: String(data.authorId || ''),
               mediaType: data.mediaType === 'video' ? 'video' : 'image',
               mediaUrl: String(data.mediaUrl || ''),
+              posterUrl: data.posterUrl ? String(data.posterUrl) : undefined,
               aspectRatio: data.aspectRatio || 'square',
+              objectPosition: data.objectPosition ? String(data.objectPosition) : undefined,
               caption: String(data.caption || ''),
               altText: String(data.altText || ''),
               hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
               likesCount: Number(data.likesCount || 0),
               commentsCount: Number(data.commentsCount || 0),
               createdAt: toMillis(data.createdAt),
+              isSample: false,
             };
           });
           setFbPosts(list);
 
-          // Check likes for current user across visible posts
+          // Check likes for current user across visible Firestore posts
           const likedIds: string[] = [];
           await Promise.all(
             list.slice(0, 40).map(async (p) => {
               if (!db) return;
-              const likeSnap = await getDoc(doc(db, 'posts', p.id, 'likes', fbAuthUid));
-              if (likeSnap.exists()) likedIds.push(p.id);
+              try {
+                const likeSnap = await getDoc(doc(db, 'posts', p.id, 'likes', fbAuthUid));
+                if (likeSnap.exists()) likedIds.push(p.id);
+              } catch {
+                // Ignore individual read error
+              }
             })
           );
           setFbLikedPostIds(likedIds);
@@ -443,101 +657,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Follows
     unsubscribers.push(
       onSnapshot(
-        query(collection(db, 'follows'), where('followerId', '==', fbAuthUid)),
+        collection(db, 'follows'),
         (snap) => {
-          setFbFollowingIds(snap.docs.map((d) => String(d.data().followingId)));
-        }
-      )
-    );
-
-    // Blocks
-    unsubscribers.push(
-      onSnapshot(
-        query(collection(db, 'blocks'), where('blockerId', '==', fbAuthUid)),
-        (snap) => {
-          setFbBlockedUserIds(snap.docs.map((d) => String(d.data().blockedUserId)));
-        }
-      )
-    );
-
-    // Stories (active 24h)
-    unsubscribers.push(
-      onSnapshot(
-        query(
-          collection(db, 'stories'),
-          where('expiresAt', '>', Timestamp.fromMillis(Date.now()))
-        ),
-        (snap) => {
-          const list: Story[] = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                authorId: String(data.authorId || ''),
-                mediaType: (data.mediaType === 'video' ? 'video' : 'image') as MediaType,
-                mediaUrl: String(data.mediaUrl || ''),
-                caption: String(data.caption || ''),
-                altText: String(data.altText || ''),
-                createdAt: toMillis(data.createdAt),
-                expiresAt: toMillis(data.expiresAt),
-              };
-            })
-            .filter((s) => s.expiresAt > Date.now())
-            .sort((a, b) => a.createdAt - b.createdAt);
-          setFbStories(list);
-        }
-      )
-    );
-
-    // Conversations
-    unsubscribers.push(
-      onSnapshot(
-        query(
-          collection(db, 'conversations'),
-          where('participants', 'array-contains', fbAuthUid)
-        ),
-        (snap) => {
-          const list: Conversation[] = snap.docs
-            .map((d) => {
-              const data = d.data();
-              return {
-                id: d.id,
-                participants: Array.isArray(data.participants) ? data.participants : [],
-                lastMessageText: String(data.lastMessageText || ''),
-                lastMessageAt: toMillis(data.lastMessageAt),
-                unreadBy: Array.isArray(data.unreadBy) ? data.unreadBy : [],
-              };
-            })
-            .sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-          setFbConversations(list);
-        }
-      )
-    );
-
-    // Notifications
-    unsubscribers.push(
-      onSnapshot(
-        query(
-          collection(db, 'notifications'),
-          where('recipientId', '==', fbAuthUid),
-          orderBy('createdAt', 'desc')
-        ),
-        (snap) => {
-          const list: NotificationItem[] = snap.docs.map((d) => {
-            const data = d.data();
-            return {
+          setFbFollowDocs(
+            snap.docs.map((d) => ({
               id: d.id,
-              recipientId: String(data.recipientId || ''),
-              actorId: String(data.actorId || ''),
-              type: data.type || 'like',
-              postId: data.postId ? String(data.postId) : undefined,
-              conversationId: data.conversationId ? String(data.conversationId) : undefined,
-              previewText: data.previewText ? String(data.previewText) : undefined,
-              read: Boolean(data.read),
-              createdAt: toMillis(data.createdAt),
-            };
-          });
-          setFbNotifications(list);
+              followerId: String(d.data().followerId || ''),
+              followingId: String(d.data().followingId || ''),
+            }))
+          );
+        },
+        (err) => {
+          console.warn('Follows listener error:', err.message);
         }
       )
     );
@@ -547,9 +678,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [mode, fbAuthUid]);
 
-  // Subscribe to comments of selected post in Firebase mode
+  // Subscribe to comments of selected post in Firebase mode (for non-sample Firestore posts)
   useEffect(() => {
     if (mode !== 'firebase' || !db || !selectedPostId) return;
+    if (DEMO_POSTS.some((p) => p.id === selectedPostId)) return;
+
     const unsub = onSnapshot(
       query(collection(db, 'posts', selectedPostId, 'comments'), orderBy('createdAt', 'asc')),
       (snap) => {
@@ -559,37 +692,90 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           authorId: String(d.data().authorId || ''),
           text: String(d.data().text || ''),
           createdAt: toMillis(d.data().createdAt),
+          isSample: false,
         }));
         setFbCommentsByPost((prev) => ({ ...prev, [selectedPostId]: list }));
+      },
+      (err) => {
+        console.warn('Comments listener error:', err.message);
       }
     );
     return () => unsub();
   }, [mode, selectedPostId]);
 
-  // Subscribe to messages of active conversation in Firebase mode
-  useEffect(() => {
-    if (mode !== 'firebase' || !db || !activeConversationId) return;
-    const unsub = onSnapshot(
-      query(
-        collection(db, 'conversations', activeConversationId, 'messages'),
-        orderBy('createdAt', 'asc')
-      ),
-      (snap) => {
-        const list: DirectMessage[] = snap.docs.map((d) => ({
+  const loadCommentsForPost = useCallback(
+    async (postId: string) => {
+      if (mode !== 'firebase' || !db) return;
+      if (DEMO_POSTS.some((p) => p.id === postId)) return;
+      const path = `posts/${postId}/comments`;
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'posts', postId, 'comments'), orderBy('createdAt', 'asc'))
+        );
+        const list: PostComment[] = snap.docs.map((d) => ({
           id: d.id,
-          conversationId: activeConversationId,
-          senderId: String(d.data().senderId || ''),
+          postId,
+          authorId: String(d.data().authorId || ''),
           text: String(d.data().text || ''),
           createdAt: toMillis(d.data().createdAt),
+          isSample: false,
         }));
-        setFbMessagesByConv((prev) => ({ ...prev, [activeConversationId]: list }));
+        setFbCommentsByPost((prev) => ({ ...prev, [postId]: list }));
+      } catch (err) {
+        console.warn('Unable to load comments:', err instanceof Error ? err.message : err);
+        handleFirestoreError(err, OperationType.LIST, path);
       }
-    );
-    return () => unsub();
-  }, [mode, activeConversationId]);
+    },
+    [mode]
+  );
 
-  // Resolved active collections
-  const users = mode === 'firebase' ? fbUsers : demoState.users;
+  // Derive live follower/following counts for Firebase users from follows docs
+  const fbFollowerCountMap = useMemo(() => {
+    const followers = new Map<string, number>();
+    const following = new Map<string, number>();
+    fbFollowDocs.forEach((f) => {
+      followers.set(f.followingId, (followers.get(f.followingId) || 0) + 1);
+      following.set(f.followerId, (following.get(f.followerId) || 0) + 1);
+    });
+    return { followers, following };
+  }, [fbFollowDocs]);
+
+  const fbFollowingIds = useMemo(() => {
+    if (!fbAuthUid) return [];
+    const realFollowing = fbFollowDocs
+      .filter((f) => f.followerId === fbAuthUid)
+      .map((f) => f.followingId);
+    return Array.from(new Set([...realFollowing, ...fbLocalOverlay.sampleFollowingIds]));
+  }, [fbFollowDocs, fbAuthUid, fbLocalOverlay.sampleFollowingIds]);
+
+  // Resolved active collections (in Firebase mode, merge real Firestore users/posts with clearly labeled Sample content)
+  const users = useMemo(() => {
+    if (mode === 'demo') return demoState.users;
+
+    const realIds = new Set(fbUsers.map((u) => u.uid));
+    const hydratedRealUsers = fbUsers.map((u) => {
+      const baseFollowing = fbFollowerCountMap.following.get(u.uid) || 0;
+      const sampleFollowingBonus =
+        u.uid === fbAuthUid ? fbLocalOverlay.sampleFollowingIds.length : 0;
+      return {
+        ...u,
+        followersCount: fbFollowerCountMap.followers.get(u.uid) ?? u.followersCount,
+        followingCount: baseFollowing + sampleFollowingBonus,
+      };
+    });
+
+    const sampleUsers = DEMO_USERS.filter((su) => !realIds.has(su.uid)).map((su) => {
+      const isFollowedLocally = fbLocalOverlay.sampleFollowingIds.includes(su.uid);
+      return {
+        ...su,
+        followersCount: su.followersCount + (isFollowedLocally ? 1 : 0),
+        isSample: true,
+      };
+    });
+
+    return [...hydratedRealUsers, ...sampleUsers];
+  }, [mode, demoState.users, fbUsers, fbFollowerCountMap, fbAuthUid, fbLocalOverlay.sampleFollowingIds]);
+
   const usersById = useMemo(() => {
     const map: Record<string, UserProfile> = {};
     users.forEach((u) => {
@@ -600,43 +786,130 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const currentUser = useMemo(() => {
     if (mode === 'firebase') {
-      return fbAuthUid ? usersById[fbAuthUid] || null : null;
+      if (!fbAuthUid) return null;
+      if (usersById[fbAuthUid]) return usersById[fbAuthUid];
+      const fallbackName = (fbAuthEmail || 'member').split('@')[0] || 'Member';
+      return {
+        uid: fbAuthUid,
+        username: normalizeUsername(fallbackName) || 'member',
+        displayName: fallbackName,
+        bio: 'New on Inztagram.',
+        avatarUrl: '/assets/aistudio/image_251618e5.png',
+        avatarPosition: '50% 35%',
+        followersCount: 0,
+        followingCount: fbLocalOverlay.sampleFollowingIds.length,
+        postsCount: 0,
+        createdAt: Date.now(),
+        isSample: false,
+      };
     }
     return demoSignedIn ? usersById[demoState.currentUid] || demoState.users[0] : null;
-  }, [mode, fbAuthUid, usersById, demoSignedIn, demoState.currentUid, demoState.users]);
+  }, [
+    mode,
+    fbAuthUid,
+    fbAuthEmail,
+    usersById,
+    fbLocalOverlay.sampleFollowingIds.length,
+    demoSignedIn,
+    demoState.currentUid,
+    demoState.users,
+  ]);
 
   const isAuthenticated = Boolean(currentUser);
 
   const blockedUserIds = useMemo(
-    () => new Set(mode === 'firebase' ? fbBlockedUserIds : demoState.blockedUserIds),
-    [mode, fbBlockedUserIds, demoState.blockedUserIds]
+    () =>
+      new Set(
+        mode === 'firebase' ? fbLocalOverlay.blockedUserIds : demoState.blockedUserIds
+      ),
+    [mode, fbLocalOverlay.blockedUserIds, demoState.blockedUserIds]
   );
 
   const posts = useMemo(() => {
-    const raw = mode === 'firebase' ? fbPosts : demoState.posts;
-    return raw
+    if (mode === 'demo') {
+      return demoState.posts
+        .filter((p) => !blockedUserIds.has(p.authorId))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    }
+
+    const sampleCommentsCountMap = new Map<string, number>();
+    fbLocalOverlay.sampleComments.forEach((c) => {
+      sampleCommentsCountMap.set(
+        c.postId,
+        (sampleCommentsCountMap.get(c.postId) || 0) + 1
+      );
+    });
+
+    const samplePostsHydrated = DEMO_POSTS.map((p) => {
+      const likedLocally = fbLocalOverlay.sampleLikedPostIds.includes(p.id);
+      const extraComments = sampleCommentsCountMap.get(p.id) || 0;
+      return {
+        ...p,
+        likesCount: p.likesCount + (likedLocally ? 1 : 0),
+        commentsCount: p.commentsCount + extraComments,
+        isSample: true,
+      };
+    });
+
+    const realIds = new Set(fbPosts.map((p) => p.id));
+    const combined = [
+      ...fbPosts,
+      ...samplePostsHydrated.filter((sp) => !realIds.has(sp.id)),
+    ];
+
+    return combined
       .filter((p) => !blockedUserIds.has(p.authorId))
       .sort((a, b) => b.createdAt - a.createdAt);
-  }, [mode, fbPosts, demoState.posts, blockedUserIds]);
+  }, [
+    mode,
+    demoState.posts,
+    fbPosts,
+    fbLocalOverlay.sampleLikedPostIds,
+    fbLocalOverlay.sampleComments,
+    blockedUserIds,
+  ]);
 
   const commentsByPost = useMemo(() => {
-    if (mode === 'firebase') return fbCommentsByPost;
     const map: Record<string, PostComment[]> = {};
-    demoState.comments.forEach((c) => {
+    if (mode === 'demo') {
+      demoState.comments.forEach((c) => {
+        if (!map[c.postId]) map[c.postId] = [];
+        map[c.postId].push(c);
+      });
+      return map;
+    }
+
+    // Seed sample comments + any local comments on sample posts + Firestore comments on real posts
+    DEMO_COMMENTS.forEach((c) => {
       if (!map[c.postId]) map[c.postId] = [];
       map[c.postId].push(c);
     });
+    fbLocalOverlay.sampleComments.forEach((c) => {
+      if (!map[c.postId]) map[c.postId] = [];
+      map[c.postId].push(c);
+    });
+    Object.entries(fbCommentsByPost).forEach(([postId, list]) => {
+      map[postId] = list;
+    });
     return map;
-  }, [mode, fbCommentsByPost, demoState.comments]);
+  }, [mode, demoState.comments, fbLocalOverlay.sampleComments, fbCommentsByPost]);
 
   const likedPostIds = useMemo(
-    () => new Set(mode === 'firebase' ? fbLikedPostIds : demoState.likedPostIds),
-    [mode, fbLikedPostIds, demoState.likedPostIds]
+    () =>
+      new Set(
+        mode === 'firebase'
+          ? [...fbLikedPostIds, ...fbLocalOverlay.sampleLikedPostIds]
+          : demoState.likedPostIds
+      ),
+    [mode, fbLikedPostIds, fbLocalOverlay.sampleLikedPostIds, demoState.likedPostIds]
   );
 
   const savedPostIds = useMemo(
-    () => new Set(mode === 'firebase' ? fbSavedPostIds : demoState.savedPostIds),
-    [mode, fbSavedPostIds, demoState.savedPostIds]
+    () =>
+      new Set(
+        mode === 'firebase' ? fbLocalOverlay.savedPostIds : demoState.savedPostIds
+      ),
+    [mode, fbLocalOverlay.savedPostIds, demoState.savedPostIds]
   );
 
   const followingIds = useMemo(
@@ -645,18 +918,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 
   const stories = useMemo(() => {
-    const raw = mode === 'firebase' ? fbStories : demoState.stories;
     const nowMs = Date.now();
-    return raw.filter((s) => s.expiresAt > nowMs && !blockedUserIds.has(s.authorId));
-  }, [mode, fbStories, demoState.stories, blockedUserIds]);
+    if (mode === 'demo') {
+      return demoState.stories.filter(
+        (s) => s.expiresAt > nowMs && !blockedUserIds.has(s.authorId)
+      );
+    }
+    const freshSamples = getFreshSampleStories();
+    const combined = [...freshSamples, ...fbLocalOverlay.localStories];
+    return combined.filter(
+      (s) => s.expiresAt > nowMs && !blockedUserIds.has(s.authorId)
+    );
+  }, [mode, demoState.stories, fbLocalOverlay.localStories, blockedUserIds]);
 
   const seenStoryIds = useMemo(
-    () => new Set(mode === 'firebase' ? fbSeenStoryIds : demoState.seenStoryIds),
-    [mode, fbSeenStoryIds, demoState.seenStoryIds]
+    () =>
+      new Set(
+        mode === 'firebase' ? fbLocalOverlay.seenStoryIds : demoState.seenStoryIds
+      ),
+    [mode, fbLocalOverlay.seenStoryIds, demoState.seenStoryIds]
   );
 
   const conversations = useMemo(() => {
-    const raw = mode === 'firebase' ? fbConversations : demoState.conversations;
+    const raw =
+      mode === 'firebase' ? fbLocalOverlay.conversations : demoState.conversations;
     if (!currentUser) return [];
     return raw
       .filter((c) => c.participants.includes(currentUser.uid))
@@ -665,25 +950,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return !other || !blockedUserIds.has(other);
       })
       .sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-  }, [mode, fbConversations, demoState.conversations, currentUser, blockedUserIds]);
+  }, [mode, fbLocalOverlay.conversations, demoState.conversations, currentUser, blockedUserIds]);
 
   const messagesByConversation = useMemo(() => {
-    if (mode === 'firebase') return fbMessagesByConv;
+    const raw = mode === 'firebase' ? fbLocalOverlay.messages : demoState.messages;
     const map: Record<string, DirectMessage[]> = {};
-    demoState.messages.forEach((m) => {
+    raw.forEach((m) => {
       if (!map[m.conversationId]) map[m.conversationId] = [];
       map[m.conversationId].push(m);
     });
     return map;
-  }, [mode, fbMessagesByConv, demoState.messages]);
+  }, [mode, fbLocalOverlay.messages, demoState.messages]);
+
+  const chatThemesByConv = useMemo(
+    () =>
+      (mode === 'firebase' ? fbLocalOverlay.chatThemes : demoState.chatThemes) || {},
+    [mode, fbLocalOverlay.chatThemes, demoState.chatThemes]
+  );
 
   const notifications = useMemo(() => {
-    const raw = mode === 'firebase' ? fbNotifications : demoState.notifications;
+    const raw =
+      mode === 'firebase' ? fbLocalOverlay.notifications : demoState.notifications;
     if (!currentUser) return [];
     return raw
       .filter((n) => n.recipientId === currentUser.uid && !blockedUserIds.has(n.actorId))
       .sort((a, b) => b.createdAt - a.createdAt);
-  }, [mode, fbNotifications, demoState.notifications, currentUser, blockedUserIds]);
+  }, [mode, fbLocalOverlay.notifications, demoState.notifications, currentUser, blockedUserIds]);
 
   const unreadNotificationsCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -758,17 +1050,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       try {
         const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          uid: cred.user.uid,
-          username: cleanUser,
-          displayName: cleanDisplay.slice(0, 60),
-          bio: 'New on Inztagram.',
-          avatarUrl: '/samples/avatar-you.svg',
-          followersCount: 0,
-          followingCount: 0,
-          postsCount: 0,
-          createdAt: serverTimestamp(),
-        });
+        const path = `users/${cred.user.uid}`;
+        try {
+          await setDoc(doc(db, 'users', cred.user.uid), {
+            uid: cred.user.uid,
+            username: cleanUser,
+            displayName: cleanDisplay.slice(0, 60),
+            bio: 'New on Inztagram.',
+            avatarUrl: '/assets/aistudio/image_251618e5.png',
+            avatarPosition: '50% 35%',
+            followersCount: 0,
+            followingCount: 0,
+            postsCount: 0,
+            createdAt: serverTimestamp(),
+          });
+        } catch (fsErr) {
+          handleFirestoreError(fsErr, OperationType.CREATE, path);
+        }
         setInDemoSession(false);
       } catch (err) {
         throw new Error(mapFirebaseAuthError(err));
@@ -830,11 +1128,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDestination('home');
   }, [mode]);
 
-  // Upload helper (Firebase Storage or local Data URL)
-  const uploadOrResolveMedia = useCallback(
+  // Media resolution (no Firebase Storage on no-cost Spark plan; bundled asset paths in Firebase mode)
+  const resolveMediaRef = useCallback(
     async (
-      folder: 'media' | 'avatars',
-      uid: string,
       file?: File | null,
       presetUrl?: string,
       onProgress?: (pct: number) => void
@@ -844,38 +1140,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return presetUrl;
       }
       if (!file) {
-        throw new Error('Please choose a file or sample asset.');
+        throw new Error('Please choose a bundled photo/video preset.');
       }
 
       if (mode === 'firebase') {
-        if (!isStorageConfigured || !storage) {
-          throw new Error(
-            'Cloud Storage is not configured (missing VITE_FIREBASE_STORAGE_BUCKET). Configure Storage or choose a sample preset.'
-          );
-        }
-        const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-        const storageRef = ref(storage, `${folder}/${uid}/${safeName}`);
-        return await new Promise<string>((resolve, reject) => {
-          const task = uploadBytesResumable(storageRef, file);
-          task.on(
-            'state_changed',
-            (snap) => {
-              const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-              onProgress?.(pct);
-            },
-            (err) => reject(err),
-            async () => {
-              const url = await getDownloadURL(task.snapshot.ref);
-              resolve(url);
-            }
-          );
-        });
+        throw new Error(
+          'Media file uploads are disabled in this no-cost Spark setup (no Firebase Storage). Choose a bundled photo or Reel clip.'
+        );
       }
 
-      // Demo mode local conversion with gentle progress feedback
       onProgress?.(35);
       if (file.type.startsWith('video/')) {
-        // Object URL plays reliably in-session without overflowing localStorage
         const objectUrl = URL.createObjectURL(file);
         onProgress?.(100);
         return objectUrl;
@@ -921,21 +1196,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       let nextAvatar = currentUser.avatarUrl;
       if (avatarFile || avatarPresetUrl) {
-        nextAvatar = await uploadOrResolveMedia(
-          'avatars',
-          currentUser.uid,
-          avatarFile,
-          avatarPresetUrl
-        );
+        nextAvatar = await resolveMediaRef(avatarFile, avatarPresetUrl);
       }
 
       if (mode === 'firebase' && db) {
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          displayName: cleanDisplay,
-          username: cleanUsername,
-          bio: cleanBio,
-          avatarUrl: nextAvatar,
-        });
+        const path = `users/${currentUser.uid}`;
+        try {
+          await updateDoc(doc(db, 'users', currentUser.uid), {
+            displayName: cleanDisplay,
+            username: cleanUsername,
+            bio: cleanBio,
+            avatarUrl: nextAvatar,
+          });
+        } catch (err) {
+          handleFirestoreError(err, OperationType.UPDATE, path);
+        }
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -954,7 +1229,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       showToast('Profile updated.');
     },
-    [currentUser, users, mode, uploadOrResolveMedia, showToast]
+    [currentUser, users, mode, resolveMediaRef, showToast]
   );
 
   const createMediaItem = useCallback(
@@ -962,9 +1237,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!currentUser) throw new Error('Please sign in first.');
       const cleanCaption = input.caption.trim().slice(0, 1000);
       const cleanAlt = input.altText.trim().slice(0, 300);
-      const mediaUrl = await uploadOrResolveMedia(
-        'media',
-        currentUser.uid,
+      const mediaUrl = await resolveMediaRef(
         input.file,
         input.presetUrl,
         input.onProgress
@@ -973,33 +1246,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (input.kind === 'story') {
         const nowMs = Date.now();
         const expiresAtMs = nowMs + 24 * 60 * 60 * 1000;
-        if (mode === 'firebase' && db) {
-          await addDoc(collection(db, 'stories'), {
-            authorId: currentUser.uid,
-            mediaType: input.mediaType,
-            mediaUrl,
-            caption: cleanCaption.slice(0, 200),
-            altText: cleanAlt || `${currentUser.displayName}'s story`,
-            createdAt: serverTimestamp(),
-            expiresAt: Timestamp.fromMillis(expiresAtMs),
-          });
+        const newStory: Story = {
+          id: `story_${nowMs}`,
+          authorId: currentUser.uid,
+          mediaType: input.mediaType,
+          mediaUrl,
+          caption: cleanCaption.slice(0, 200),
+          altText: cleanAlt || `${currentUser.displayName}'s story`,
+          createdAt: nowMs,
+          expiresAt: expiresAtMs,
+          isSample: false,
+        };
+        if (mode === 'firebase') {
+          setFbLocalOverlay((prev) => ({
+            ...prev,
+            localStories: [...prev.localStories, newStory],
+          }));
+          showToast('Story published in this browser (Demo-only feature).');
         } else {
-          const newStory: Story = {
-            id: `story_${nowMs}`,
-            authorId: currentUser.uid,
-            mediaType: input.mediaType,
-            mediaUrl,
-            caption: cleanCaption.slice(0, 200),
-            altText: cleanAlt || `${currentUser.displayName}'s story`,
-            createdAt: nowMs,
-            expiresAt: expiresAtMs,
-          };
           setDemoState((prev) => ({
             ...prev,
             stories: [...prev.stories, newStory],
           }));
+          showToast('Story published (expires in 24h).');
         }
-        showToast('Story published (expires in 24h).');
         return;
       }
 
@@ -1008,30 +1278,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         hashtags.push('reels');
       }
 
+      const isVideoPreset =
+        input.mediaType === 'video' &&
+        Boolean(input.presetUrl) &&
+        /\.(mp4|webm|mov)(\?|$)/i.test(input.presetUrl || '');
+      const isImagePosterForReel =
+        input.mediaType === 'video' && Boolean(input.presetUrl) && !isVideoPreset;
+
       if (mode === 'firebase' && db) {
-        await addDoc(collection(db, 'posts'), {
-          authorId: currentUser.uid,
-          mediaType: input.mediaType,
-          mediaUrl,
-          aspectRatio: input.kind === 'reel' ? 'portrait' : 'square',
-          caption: cleanCaption,
-          altText: cleanAlt || `${currentUser.displayName}'s ${input.mediaType}`,
-          hashtags,
-          likesCount: 0,
-          commentsCount: 0,
-          createdAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          postsCount: increment(1),
-        });
+        if (isImagePosterForReel) {
+          throw new Error('Please choose a video clip preset for Reels.');
+        }
+        const postRef = doc(collection(db, 'posts'));
+        const path = `posts/${postRef.id}`;
+        try {
+          const batch = writeBatch(db);
+          batch.set(postRef, {
+            authorId: currentUser.uid,
+            mediaType: input.mediaType,
+            mediaUrl,
+            ...(input.posterUrl ? { posterUrl: input.posterUrl } : {}),
+            aspectRatio: input.kind === 'reel' ? 'portrait' : 'square',
+            caption: cleanCaption,
+            altText: cleanAlt || `${currentUser.displayName}'s ${input.mediaType}`,
+            hashtags,
+            likesCount: 0,
+            commentsCount: 0,
+            createdAt: serverTimestamp(),
+          });
+          batch.update(doc(db, 'users', currentUser.uid), {
+            postsCount: increment(1),
+          });
+          await batch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, path);
+        }
       } else {
         const nowMs = Date.now();
         const newPost: Post = {
           id: `post_${nowMs}`,
           authorId: currentUser.uid,
           mediaType: input.mediaType,
-          mediaUrl,
-          posterUrl: input.mediaType === 'video' && input.presetUrl ? input.presetUrl : undefined,
+          mediaUrl: isImagePosterForReel ? '' : mediaUrl,
+          posterUrl: isImagePosterForReel ? input.presetUrl : input.posterUrl,
           aspectRatio: input.kind === 'reel' ? 'portrait' : 'square',
           caption: cleanCaption,
           altText: cleanAlt || `${currentUser.displayName}'s ${input.mediaType}`,
@@ -1039,7 +1328,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           likesCount: 0,
           commentsCount: 0,
           createdAt: nowMs,
-          demoReelTheme: input.mediaType === 'video' ? 'petal' : undefined,
+          isSample: false,
+          demoReelTheme: isImagePosterForReel ? 'petal' : undefined,
         };
         setDemoState((prev) => ({
           ...prev,
@@ -1052,7 +1342,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       showToast(input.kind === 'reel' ? 'Reel shared!' : 'Post published!');
     },
-    [currentUser, mode, uploadOrResolveMedia, showToast]
+    [currentUser, mode, resolveMediaRef, showToast]
   );
 
   const deletePost = useCallback(
@@ -1064,11 +1354,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return;
       }
 
-      if (mode === 'firebase' && db) {
-        await deleteDoc(doc(db, 'posts', postId));
-        await updateDoc(doc(db, 'users', currentUser.uid), {
-          postsCount: increment(-1),
-        });
+      if (mode === 'firebase' && db && !target.isSample) {
+        const path = `posts/${postId}`;
+        try {
+          const batch = writeBatch(db);
+          batch.delete(doc(db, 'posts', postId));
+          batch.update(doc(db, 'users', currentUser.uid), {
+            postsCount: increment(-1),
+          });
+          await batch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, path);
+        }
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -1094,29 +1391,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!post) return;
       const isLiked = likedPostIds.has(postId);
 
+      if (!isLiked) {
+        triggerHeartBurst();
+      }
+
       if (mode === 'firebase' && db) {
-        // Optimistic update
+        if (post.isSample) {
+          setFbLocalOverlay((prev) => ({
+            ...prev,
+            sampleLikedPostIds: isLiked
+              ? prev.sampleLikedPostIds.filter((id) => id !== postId)
+              : [...prev.sampleLikedPostIds, postId],
+          }));
+          return;
+        }
+
+        // Optimistic update + atomic Firestore batch matching existsAfter rules
         setFbLikedPostIds((prev) =>
           isLiked ? prev.filter((id) => id !== postId) : [...prev, postId]
         );
         const likeRef = doc(db, 'posts', postId, 'likes', currentUser.uid);
         const postRef = doc(db, 'posts', postId);
-        if (isLiked) {
-          await deleteDoc(likeRef);
-          await updateDoc(postRef, { likesCount: increment(-1) });
-        } else {
-          await setDoc(likeRef, { userId: currentUser.uid, createdAt: serverTimestamp() });
-          await updateDoc(postRef, { likesCount: increment(1) });
-          if (post.authorId !== currentUser.uid) {
-            await addDoc(collection(db, 'notifications'), {
-              recipientId: post.authorId,
-              actorId: currentUser.uid,
-              type: 'like',
-              postId,
-              read: false,
-              createdAt: serverTimestamp(),
-            });
+        const path = `posts/${postId}/likes/${currentUser.uid}`;
+        try {
+          const batch = writeBatch(db);
+          if (isLiked) {
+            batch.delete(likeRef);
+            batch.update(postRef, { likesCount: increment(-1) });
+          } else {
+            batch.set(likeRef, { userId: currentUser.uid, createdAt: serverTimestamp() });
+            batch.update(postRef, { likesCount: increment(1) });
           }
+          await batch.commit();
+        } catch (err) {
+          // Revert optimistic state
+          setFbLikedPostIds((prev) =>
+            isLiked ? [...prev, postId] : prev.filter((id) => id !== postId)
+          );
+          handleFirestoreError(err, OperationType.WRITE, path);
         }
         return;
       }
@@ -1148,7 +1460,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : prev.notifications,
       }));
     },
-    [currentUser, posts, likedPostIds, mode]
+    [currentUser, posts, likedPostIds, mode, triggerHeartBurst]
   );
 
   const addComment = useCallback(
@@ -1160,22 +1472,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!post) return;
 
       if (mode === 'firebase' && db) {
-        await addDoc(collection(db, 'posts', postId, 'comments'), {
-          authorId: currentUser.uid,
-          text: clean.slice(0, 500),
-          createdAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, 'posts', postId), { commentsCount: increment(1) });
-        if (post.authorId !== currentUser.uid) {
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: post.authorId,
-            actorId: currentUser.uid,
-            type: 'comment',
+        if (post.isSample) {
+          const nowMs = Date.now();
+          const newComment: PostComment = {
+            id: `c_local_${nowMs}`,
             postId,
-            previewText: clean.slice(0, 120),
-            read: false,
+            authorId: currentUser.uid,
+            text: clean.slice(0, 500),
+            createdAt: nowMs,
+            isSample: false,
+          };
+          setFbLocalOverlay((prev) => ({
+            ...prev,
+            sampleComments: [...prev.sampleComments, newComment],
+          }));
+          return;
+        }
+
+        const commentRef = doc(collection(db, 'posts', postId, 'comments'));
+        const path = `posts/${postId}/comments/${commentRef.id}`;
+        try {
+          const batch = writeBatch(db);
+          batch.set(commentRef, {
+            authorId: currentUser.uid,
+            text: clean.slice(0, 500),
             createdAt: serverTimestamp(),
           });
+          batch.update(doc(db, 'posts', postId), { commentsCount: increment(1) });
+          await batch.commit();
+          // Refresh comments immediately if not already subscribed via modal
+          await loadCommentsForPost(postId);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.CREATE, path);
         }
         return;
       }
@@ -1187,6 +1515,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         authorId: currentUser.uid,
         text: clean.slice(0, 500),
         createdAt: nowMs,
+        isSample: false,
       };
       setDemoState((prev) => ({
         ...prev,
@@ -1212,44 +1541,49 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             : prev.notifications,
       }));
     },
-    [currentUser, posts, mode]
+    [currentUser, posts, mode, loadCommentsForPost]
   );
 
   const toggleFollow = useCallback(
     async (targetUid: string) => {
       if (!currentUser || targetUid === currentUser.uid) return;
       const isFollowing = followingIds.has(targetUid);
+      const targetUser = usersById[targetUid];
 
       if (mode === 'firebase' && db) {
+        if (targetUser?.isSample) {
+          setFbLocalOverlay((prev) => ({
+            ...prev,
+            sampleFollowingIds: isFollowing
+              ? prev.sampleFollowingIds.filter((id) => id !== targetUid)
+              : [...prev.sampleFollowingIds, targetUid],
+          }));
+          return;
+        }
+
         const followId = `${currentUser.uid}_${targetUid}`;
         const followRef = doc(db, 'follows', followId);
-        if (isFollowing) {
-          await deleteDoc(followRef);
-          await updateDoc(doc(db, 'users', currentUser.uid), {
-            followingCount: increment(-1),
-          });
-          await updateDoc(doc(db, 'users', targetUid), {
-            followersCount: increment(-1),
-          });
-        } else {
-          await setDoc(followRef, {
-            followerId: currentUser.uid,
-            followingId: targetUid,
-            createdAt: serverTimestamp(),
-          });
-          await updateDoc(doc(db, 'users', currentUser.uid), {
-            followingCount: increment(1),
-          });
-          await updateDoc(doc(db, 'users', targetUid), {
-            followersCount: increment(1),
-          });
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: targetUid,
-            actorId: currentUser.uid,
-            type: 'follow',
-            read: false,
-            createdAt: serverTimestamp(),
-          });
+        const path = `follows/${followId}`;
+        try {
+          const batch = writeBatch(db);
+          if (isFollowing) {
+            batch.delete(followRef);
+            batch.update(doc(db, 'users', currentUser.uid), {
+              followingCount: increment(-1),
+            });
+          } else {
+            batch.set(followRef, {
+              followerId: currentUser.uid,
+              followingId: targetUid,
+              createdAt: serverTimestamp(),
+            });
+            batch.update(doc(db, 'users', currentUser.uid), {
+              followingCount: increment(1),
+            });
+          }
+          await batch.commit();
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, path);
         }
         return;
       }
@@ -1289,23 +1623,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           : prev.notifications,
       }));
     },
-    [currentUser, followingIds, mode]
+    [currentUser, followingIds, usersById, mode]
   );
 
   const toggleSavePost = useCallback(
     (postId: string) => {
       if (mode === 'firebase') {
-        setFbSavedPostIds((prev) => {
-          const next = prev.includes(postId)
-            ? prev.filter((id) => id !== postId)
-            : [...prev, postId];
-          try {
-            localStorage.setItem('inztagram_fb_saved', JSON.stringify(next));
-          } catch {
-            // ignore
-          }
-          return next;
-        });
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          savedPostIds: prev.savedPostIds.includes(postId)
+            ? prev.savedPostIds.filter((id) => id !== postId)
+            : [...prev.savedPostIds, postId],
+        }));
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -1322,7 +1651,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const markStorySeen = useCallback(
     (storyId: string) => {
       if (mode === 'firebase') {
-        setFbSeenStoryIds((prev) => (prev.includes(storyId) ? prev : [...prev, storyId]));
+        setFbLocalOverlay((prev) =>
+          prev.seenStoryIds.includes(storyId)
+            ? prev
+            : { ...prev, seenStoryIds: [...prev.seenStoryIds, storyId] }
+        );
       } else {
         setDemoState((prev) =>
           prev.seenStoryIds.includes(storyId)
@@ -1334,6 +1667,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [mode]
   );
 
+  // Direct Messages remain browser-local Demo Mode (no Cloud Functions/chat server on Spark)
   const startConversation = useCallback(
     async (otherUid: string): Promise<string> => {
       if (!currentUser) throw new Error('Sign in to send messages.');
@@ -1346,20 +1680,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return existing.id;
       }
 
-      if (mode === 'firebase' && db) {
-        const sorted = [currentUser.uid, otherUid].sort();
-        const convId = `${sorted[0]}_${sorted[1]}`;
-        await setDoc(doc(db, 'conversations', convId), {
-          participants: sorted,
-          lastMessageText: '',
-          lastMessageAt: serverTimestamp(),
-          unreadBy: [],
-        });
-        setActiveConversationId(convId);
-        setDestination('messages');
-        return convId;
-      }
-
       const convId = `conv_${Date.now()}`;
       const newConv: Conversation = {
         id: convId,
@@ -1368,10 +1688,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastMessageAt: Date.now(),
         unreadBy: [],
       };
-      setDemoState((prev) => ({
-        ...prev,
-        conversations: [newConv, ...prev.conversations],
-      }));
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          conversations: [newConv, ...prev.conversations],
+        }));
+      } else {
+        setDemoState((prev) => ({
+          ...prev,
+          conversations: [newConv, ...prev.conversations],
+        }));
+      }
       setActiveConversationId(convId);
       setDestination('messages');
       return convId;
@@ -1388,31 +1715,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!conv) throw new Error('Conversation not found.');
       const otherUid = conv.participants.find((id) => id !== currentUser.uid) || '';
 
-      if (mode === 'firebase' && db) {
-        await addDoc(collection(db, 'conversations', conversationId, 'messages'), {
-          senderId: currentUser.uid,
-          text: clean.slice(0, 1000),
-          createdAt: serverTimestamp(),
-        });
-        await updateDoc(doc(db, 'conversations', conversationId), {
-          lastMessageText: clean.slice(0, 140),
-          lastMessageAt: serverTimestamp(),
-          unreadBy: otherUid ? [otherUid] : [],
-        });
-        if (otherUid) {
-          await addDoc(collection(db, 'notifications'), {
-            recipientId: otherUid,
-            actorId: currentUser.uid,
-            type: 'message',
-            conversationId,
-            previewText: clean.slice(0, 100),
-            read: false,
-            createdAt: serverTimestamp(),
-          });
-        }
-        return;
-      }
-
       const nowMs = Date.now();
       const newMsg: DirectMessage = {
         id: `m_${nowMs}`,
@@ -1421,6 +1723,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         text: clean.slice(0, 1000),
         createdAt: nowMs,
       };
+
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          messages: [...prev.messages, newMsg],
+          conversations: prev.conversations.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  lastMessageText: clean.slice(0, 140),
+                  lastMessageAt: nowMs,
+                  unreadBy: otherUid ? [otherUid] : [],
+                }
+              : c
+          ),
+        }));
+        return;
+      }
+
       setDemoState((prev) => ({
         ...prev,
         messages: [...prev.messages, newMsg],
@@ -1460,10 +1781,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const conv = conversations.find((c) => c.id === conversationId);
       if (!conv || !conv.unreadBy.includes(currentUser.uid)) return;
 
-      if (mode === 'firebase' && db) {
-        await updateDoc(doc(db, 'conversations', conversationId), {
-          unreadBy: conv.unreadBy.filter((id) => id !== currentUser.uid),
-        });
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          conversations: prev.conversations.map((c) =>
+            c.id === conversationId
+              ? { ...c, unreadBy: c.unreadBy.filter((id) => id !== currentUser.uid) }
+              : c
+          ),
+        }));
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -1478,10 +1804,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser, conversations, mode]
   );
 
+  const setConversationTheme = useCallback(
+    (conversationId: string, themeId: ChatThemeId) => {
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          chatThemes: { ...(prev.chatThemes || {}), [conversationId]: themeId },
+        }));
+      } else {
+        setDemoState((prev) => ({
+          ...prev,
+          chatThemes: { ...(prev.chatThemes || {}), [conversationId]: themeId },
+        }));
+      }
+    },
+    [mode]
+  );
+
   const markNotificationRead = useCallback(
     async (notificationId: string) => {
-      if (mode === 'firebase' && db) {
-        await updateDoc(doc(db, 'notifications', notificationId), { read: true });
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          notifications: prev.notifications.map((n) =>
+            n.id === notificationId ? { ...n, read: true } : n
+          ),
+        }));
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -1496,16 +1844,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const markAllNotificationsRead = useCallback(async () => {
     if (!currentUser) return;
-    if (mode === 'firebase' && db) {
-      const batch = writeBatch(db);
-      const q = query(
-        collection(db, 'notifications'),
-        where('recipientId', '==', currentUser.uid),
-        where('read', '==', false)
-      );
-      const snap = await getDocs(q);
-      snap.docs.forEach((d) => batch.update(d.ref, { read: true }));
-      await batch.commit();
+    if (mode === 'firebase') {
+      setFbLocalOverlay((prev) => ({
+        ...prev,
+        notifications: prev.notifications.map((n) =>
+          n.recipientId === currentUser.uid ? { ...n, read: true } : n
+        ),
+      }));
     } else {
       setDemoState((prev) => ({
         ...prev,
@@ -1517,6 +1862,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     showToast('All notifications marked as read.');
   }, [currentUser, mode, showToast]);
 
+  // Safety reports & blocks remain browser-local Demo Mode (no backend moderation queue)
   const reportContent = useCallback(
     async ({
       targetType,
@@ -1529,31 +1875,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }) => {
       if (!currentUser) return;
       const cleanReason = reason.trim() || 'Inappropriate content';
-      if (mode === 'firebase' && db) {
-        await addDoc(collection(db, 'reports'), {
-          reporterId: currentUser.uid,
-          targetType,
-          targetId,
-          reason: cleanReason.slice(0, 200),
-          createdAt: serverTimestamp(),
-        });
-        showToast('Report submitted. Thank you for helping keep Inztagram safe.');
+      const entry: SafetyReport = {
+        id: `rep_${Date.now()}`,
+        targetType,
+        targetId,
+        reason: cleanReason,
+        createdAt: Date.now(),
+      };
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          reports: [...prev.reports, entry],
+        }));
       } else {
         setDemoState((prev) => ({
           ...prev,
-          reports: [
-            ...prev.reports,
-            {
-              id: `rep_${Date.now()}`,
-              targetType,
-              targetId,
-              reason: cleanReason,
-              createdAt: Date.now(),
-            },
-          ],
+          reports: [...prev.reports, entry],
         }));
-        showToast('Report saved locally (Demo only).');
       }
+      showToast('Report saved locally (Demo only — no live moderation queue).');
     },
     [currentUser, mode, showToast]
   );
@@ -1562,18 +1902,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     async (targetUid: string) => {
       if (!currentUser || targetUid === currentUser.uid) return;
       const isBlocked = blockedUserIds.has(targetUid);
-      if (mode === 'firebase' && db) {
-        const blockId = `${currentUser.uid}_${targetUid}`;
-        if (isBlocked) {
-          await deleteDoc(doc(db, 'blocks', blockId));
-        } else {
-          await setDoc(doc(db, 'blocks', blockId), {
-            blockerId: currentUser.uid,
-            blockedUserId: targetUid,
-            createdAt: serverTimestamp(),
-          });
-        }
-        showToast(isBlocked ? 'Account unblocked.' : 'Account blocked.');
+      if (mode === 'firebase') {
+        setFbLocalOverlay((prev) => ({
+          ...prev,
+          blockedUserIds: isBlocked
+            ? prev.blockedUserIds.filter((id) => id !== targetUid)
+            : [...prev.blockedUserIds, targetUid],
+        }));
       } else {
         setDemoState((prev) => ({
           ...prev,
@@ -1581,12 +1916,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ? prev.blockedUserIds.filter((id) => id !== targetUid)
             : [...prev.blockedUserIds, targetUid],
         }));
-        showToast(
-          isBlocked
-            ? 'Account unblocked (Demo only).'
-            : 'Account blocked in this browser (Demo only).'
-        );
       }
+      showToast(
+        isBlocked
+          ? 'Account unblocked in this browser (Demo only).'
+          : 'Account blocked in this browser (Demo only).'
+      );
     },
     [currentUser, blockedUserIds, mode, showToast]
   );
@@ -1610,9 +1945,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     seenStoryIds,
     conversations,
     messagesByConversation,
+    chatThemesByConv,
     notifications,
     unreadNotificationsCount,
     unreadMessagesCount,
+
+    theme,
+    setTheme,
+    toggleTheme,
+    heartBurstTick,
+    triggerHeartBurst,
 
     destination,
     setDestination,
@@ -1648,6 +1990,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     createMediaItem,
     deletePost,
     toggleLike,
+    loadCommentsForPost,
     addComment,
     toggleFollow,
     toggleSavePost,
@@ -1655,6 +1998,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     startConversation,
     sendMessage,
     markConversationRead,
+    setConversationTheme,
     markNotificationRead,
     markAllNotificationsRead,
     reportContent,

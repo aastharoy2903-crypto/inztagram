@@ -12,6 +12,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { formatCompactCount, formatRelativeTime, shareContent } from '../utils/formatters';
 import { ReelVideoPlayer, ResilientImage } from './ResilientMedia';
+import { SampleBadge } from './SampleBadge';
 
 export const ReelsView: React.FC = () => {
   const {
@@ -93,21 +94,23 @@ export const ReelsView: React.FC = () => {
   if (reels.length === 0) {
     return (
       <div className="w-full max-w-2xl mx-auto px-4 py-14 text-center">
-        <div className="rounded-2xl bg-white border border-[#E5DCE9] p-10 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-[#F3EEF7] text-[#A74695] flex items-center justify-center mx-auto">
+        <div className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] p-10 space-y-4">
+          <div className="w-12 h-12 rounded-2xl bg-[#F3EEF7] dark:bg-[#281E30] text-[#A74695] dark:text-[#FF64AE] flex items-center justify-center mx-auto">
             <Film className="w-6 h-6" aria-hidden="true" />
           </div>
-          <h1 className="font-display text-lg font-bold text-[#39243B]">No Reels yet</h1>
-          <p className="text-sm text-[#68556B] max-w-sm mx-auto">
-            Short vertical videos appear here in chronological order. Upload a clip to share the first Reel.
+          <h1 className="font-display text-lg font-bold text-[#39243B] dark:text-[#F6EFF8]">
+            No Reels yet
+          </h1>
+          <p className="text-sm text-[#68556B] dark:text-[#B7A6BD] max-w-sm mx-auto">
+            Short vertical videos appear here in chronological order. Choose a clip to share the first Reel.
           </p>
           <button
             type="button"
             onClick={() => openCreateModal('reel')}
-            className="min-h-[42px] px-4 rounded-xl bg-[#39243B] text-white text-xs font-semibold hover:bg-[#4E3351] inline-flex items-center gap-2"
+            className="min-h-[42px] px-4 rounded-xl bg-[#39243B] dark:bg-[#FF64AE] text-white dark:text-[#111111] text-xs font-semibold hover:bg-[#4E3351] dark:hover:bg-[#ff7abb] inline-flex items-center gap-2"
           >
             <PlusSquare className="w-4 h-4" aria-hidden="true" />
-            <span>Upload Reel</span>
+            <span>Create Reel</span>
           </button>
         </div>
       </div>
@@ -123,15 +126,19 @@ export const ReelsView: React.FC = () => {
       {/* Top context bar */}
       <div className="w-full max-w-[440px] flex items-center justify-between gap-3 mb-3">
         <div>
-          <h1 className="font-display text-lg font-bold text-[#39243B]">Reels</h1>
-          <p className="text-xs text-[#68556B]">Chronological short videos · Muted by default</p>
+          <h1 className="font-display text-lg font-bold text-[#39243B] dark:text-[#F6EFF8]">
+            Reels
+          </h1>
+          <p className="text-xs text-[#68556B] dark:text-[#B7A6BD]">
+            Chronological short videos · Muted by default
+          </p>
         </div>
         <button
           type="button"
           onClick={() => openCreateModal('reel')}
-          className="min-h-[38px] px-3.5 rounded-xl bg-white border border-[#E5DCE9] hover:bg-[#F3EEF7] text-xs font-semibold text-[#39243B] inline-flex items-center gap-1.5 whitespace-nowrap"
+          className="min-h-[38px] px-3.5 rounded-xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] hover:bg-[#F3EEF7] dark:hover:bg-[#231C29] text-xs font-semibold text-[#39243B] dark:text-[#F6EFF8] inline-flex items-center gap-1.5 whitespace-nowrap"
         >
-          <PlusSquare className="w-4 h-4 text-[#A74695]" aria-hidden="true" />
+          <PlusSquare className="w-4 h-4 text-[#A74695] dark:text-[#FF64AE]" aria-hidden="true" />
           <span>New Reel</span>
         </button>
       </div>
@@ -141,7 +148,7 @@ export const ReelsView: React.FC = () => {
         <div
           ref={containerRef}
           onScroll={handleScroll}
-          className="w-full max-w-[420px] h-[calc(100vh-195px)] md:h-[calc(100vh-110px)] min-h-[480px] max-h-[760px] overflow-y-scroll snap-y snap-mandatory rounded-2xl border border-[#E5DCE9] bg-[#241626] shadow-md scrollbar-thin"
+          className="w-full max-w-[420px] h-[calc(100vh-195px)] md:h-[calc(100vh-110px)] min-h-[480px] max-h-[760px] overflow-y-scroll snap-y snap-mandatory rounded-2xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#241626] dark:bg-[#0B090D] shadow-md scrollbar-thin"
           aria-label="Vertical short video feed"
         >
           {reels.map((reel, idx) => {
@@ -191,6 +198,7 @@ export const ReelsView: React.FC = () => {
                         @{author.username}
                       </span>
                     </button>
+                    {(reel.isSample || author.isSample) && <SampleBadge compact dark />}
 
                     {!isOwn && (
                       <button
@@ -282,11 +290,11 @@ export const ReelsView: React.FC = () => {
             disabled={activeIndex === 0}
             onClick={() => scrollToReel(activeIndex - 1)}
             aria-label="Previous reel"
-            className="min-h-[44px] min-w-[44px] rounded-full bg-white border border-[#E5DCE9] text-[#39243B] hover:bg-[#F3EEF7] disabled:opacity-40 flex items-center justify-center shadow-xs transition-colors"
+            className="min-h-[44px] min-w-[44px] rounded-full bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F3EEF7] dark:hover:bg-[#231C29] disabled:opacity-40 flex items-center justify-center shadow-xs transition-colors"
           >
             <ChevronUp className="w-5 h-5" aria-hidden="true" />
           </button>
-          <span className="text-xs text-center text-[#68556B] font-medium tabular-nums">
+          <span className="text-xs text-center text-[#68556B] dark:text-[#B7A6BD] font-medium tabular-nums">
             {activeIndex + 1}/{reels.length}
           </span>
           <button
@@ -294,7 +302,7 @@ export const ReelsView: React.FC = () => {
             disabled={activeIndex >= reels.length - 1}
             onClick={() => scrollToReel(activeIndex + 1)}
             aria-label="Next reel"
-            className="min-h-[44px] min-w-[44px] rounded-full bg-white border border-[#E5DCE9] text-[#39243B] hover:bg-[#F3EEF7] disabled:opacity-40 flex items-center justify-center shadow-xs transition-colors"
+            className="min-h-[44px] min-w-[44px] rounded-full bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F3EEF7] dark:hover:bg-[#231C29] disabled:opacity-40 flex items-center justify-center shadow-xs transition-colors"
           >
             <ChevronDown className="w-5 h-5" aria-hidden="true" />
           </button>
@@ -304,25 +312,25 @@ export const ReelsView: React.FC = () => {
       {/* Reel Comments Drawer */}
       {commentDrawerReelId && (
         <div
-          className="fixed inset-0 z-50 bg-[#1F1321]/50 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+          className="fixed inset-0 z-50 bg-[#1F1321]/50 dark:bg-black/70 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Reel comments"
           onClick={() => setCommentDrawerReelId(null)}
         >
           <div
-            className="w-full sm:max-w-md max-h-[75vh] rounded-t-3xl sm:rounded-2xl bg-white border border-[#E5DCE9] shadow-xl flex flex-col"
+            className="w-full sm:max-w-md max-h-[75vh] rounded-t-3xl sm:rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] shadow-xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 py-3 border-b border-[#E5DCE9] flex items-center justify-between">
-              <h2 className="font-display text-sm font-bold text-[#39243B]">
+            <div className="px-4 py-3 border-b border-[#E5DCE9] dark:border-[#2E2436] flex items-center justify-between">
+              <h2 className="font-display text-sm font-bold text-[#39243B] dark:text-[#F6EFF8]">
                 Comments ({drawerComments.length})
               </h2>
               <button
                 type="button"
                 onClick={() => setCommentDrawerReelId(null)}
                 aria-label="Close comments"
-                className="min-h-[38px] min-w-[38px] rounded-xl flex items-center justify-center text-[#68556B] hover:bg-[#F8F5FA]"
+                className="min-h-[38px] min-w-[38px] rounded-xl flex items-center justify-center text-[#68556B] dark:text-[#B7A6BD] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29]"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
               </button>
@@ -330,7 +338,7 @@ export const ReelsView: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {drawerComments.length === 0 ? (
-                <p className="text-sm text-[#68556B] text-center py-6">
+                <p className="text-sm text-[#68556B] dark:text-[#B7A6BD] text-center py-6">
                   No comments yet. Add the first note below.
                 </p>
               ) : (
@@ -339,19 +347,19 @@ export const ReelsView: React.FC = () => {
                   return (
                     <div key={c.id} className="flex items-start gap-2.5 text-sm">
                       <ResilientImage
-                        src={cAuthor?.avatarUrl || '/samples/avatar-you.svg'}
+                        src={cAuthor?.avatarUrl || '/assets/aistudio/image_251618e5.png'}
                         alt={cAuthor?.displayName || 'Member'}
                         objectPosition={cAuthor?.avatarPosition}
-                        className="w-8 h-8 rounded-full object-cover border border-[#E5DCE9] shrink-0"
+                        className="w-8 h-8 rounded-full object-cover border border-[#E5DCE9] dark:border-[#3A2D45] shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-[#39243B]">
-                          <span className="font-semibold mr-1.5">
+                        <p className="text-[#39243B] dark:text-[#E9DDF0]">
+                          <span className="font-semibold text-[#39243B] dark:text-[#F6EFF8] mr-1.5">
                             {cAuthor?.username || 'member'}
                           </span>
                           <span>{c.text}</span>
                         </p>
-                        <p className="text-[11px] text-[#68556B] mt-0.5 tabular-nums">
+                        <p className="text-[11px] text-[#68556B] dark:text-[#B7A6BD] mt-0.5 tabular-nums">
                           {formatRelativeTime(c.createdAt)}
                         </p>
                       </div>
@@ -361,7 +369,10 @@ export const ReelsView: React.FC = () => {
               )}
             </div>
 
-            <form onSubmit={handleCommentSubmit} className="p-3.5 border-t border-[#E5DCE9] space-y-1">
+            <form
+              onSubmit={handleCommentSubmit}
+              className="p-3.5 border-t border-[#E5DCE9] dark:border-[#2E2436] space-y-1"
+            >
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -372,16 +383,18 @@ export const ReelsView: React.FC = () => {
                   }}
                   placeholder="Add a comment..."
                   aria-label="Add a comment"
-                  className="flex-1 min-h-[42px] px-3 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm"
+                  className="flex-1 min-h-[42px] px-3 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91]"
                 />
                 <button
                   type="submit"
-                  className="min-h-[42px] px-4 rounded-xl bg-[#39243B] text-white text-xs font-semibold hover:bg-[#4E3351]"
+                  className="min-h-[42px] px-4 rounded-xl bg-[#39243B] dark:bg-[#FF64AE] text-white dark:text-[#111111] text-xs font-semibold hover:bg-[#4E3351] dark:hover:bg-[#ff7abb]"
                 >
                   Post
                 </button>
               </div>
-              {commentError && <p className="text-xs text-[#B4234A]">{commentError}</p>}
+              {commentError && (
+                <p className="text-xs text-[#B4234A] dark:text-[#FF7B9C]">{commentError}</p>
+              )}
             </form>
           </div>
         </div>

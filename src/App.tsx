@@ -4,6 +4,8 @@ import { AppProvider, useApp } from './context/AppContext';
 import { AuthGate } from './components/AuthGate';
 import { CreatePostModal } from './components/CreatePostModal';
 import { ExploreView } from './components/ExploreView';
+import { GameView } from './components/GameView';
+import { HeartBubblesOverlay } from './components/HeartBubblesOverlay';
 import { HomeFeedView } from './components/HomeFeedView';
 import { MessagesView } from './components/MessagesView';
 import { Navigation } from './components/Navigation';
@@ -26,8 +28,8 @@ const AppShell: React.FC = () => {
 
   if (isLoadingAuth) {
     return (
-      <div className="min-h-screen bg-[#F8F5FA] flex flex-col items-center justify-center gap-3 text-sm text-[#68556B]">
-        <Loader2 className="w-7 h-7 animate-spin text-[#A74695]" aria-hidden="true" />
+      <div className="min-h-screen bg-[#F8F5FA] dark:bg-[#0F0C12] flex flex-col items-center justify-center gap-3 text-sm text-[#68556B] dark:text-[#B7A6BD]">
+        <Loader2 className="w-7 h-7 animate-spin text-[#A74695] dark:text-[#FF64AE]" aria-hidden="true" />
         <span>Loading Inztagram...</span>
       </div>
     );
@@ -38,12 +40,13 @@ const AppShell: React.FC = () => {
       {!isAuthenticated ? (
         <AuthGate />
       ) : (
-        <div className="min-h-screen bg-[#F8F5FA] text-[#39243B] flex flex-col md:flex-row">
+        <div className="min-h-screen bg-[#F8F5FA] dark:bg-[#0F0C12] text-[#39243B] dark:text-[#F6EFF8] flex flex-col md:flex-row transition-colors">
           <Navigation />
           <main className="flex-1 min-w-0 pb-20 md:pb-8">
             {destination === 'home' && <HomeFeedView />}
             {destination === 'reels' && <ReelsView />}
             {destination === 'explore' && <ExploreView />}
+            {destination === 'game' && <GameView />}
             {destination === 'messages' && <MessagesView />}
             {destination === 'notifications' && <NotificationsView />}
             {destination === 'profile' && <ProfileView />}
@@ -52,6 +55,7 @@ const AppShell: React.FC = () => {
           <StoryViewerModal />
           <PostDetailModal />
           <CreatePostModal />
+          <HeartBubblesOverlay />
         </div>
       )}
 
@@ -67,7 +71,7 @@ const AppShell: React.FC = () => {
         className="pointer-events-none fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4"
       >
         {toastMessage && (
-          <div className="rounded-xl bg-[#39243B] text-white text-xs font-medium px-4 py-2.5 shadow-lg border border-white/10">
+          <div className="rounded-xl bg-[#39243B] dark:bg-[#231C29] text-white dark:text-[#F6EFF8] text-xs font-medium px-4 py-2.5 shadow-lg border border-white/10 dark:border-[#3A2D45]">
             {toastMessage}
           </div>
         )}

@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Clock, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatRelativeTime, formatStoryExpiry } from '../utils/formatters';
 import { ResilientImage } from './ResilientMedia';
+import { SampleBadge } from './SampleBadge';
 
 export const StoryViewerModal: React.FC = () => {
   const {
@@ -160,7 +161,10 @@ export const StoryViewerModal: React.FC = () => {
                 className="w-9 h-9 rounded-full object-cover border border-white/50 shrink-0"
               />
               <div className="min-w-0 text-white">
-                <p className="text-sm font-semibold truncate">{author.username}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <p className="text-sm font-semibold truncate">{author.username}</p>
+                  {(currentStory.isSample || author.isSample) && <SampleBadge compact dark />}
+                </div>
                 <p className="text-xs text-white/80 flex items-center gap-1.5">
                   <span>{formatRelativeTime(currentStory.createdAt)}</span>
                   <span aria-hidden="true">&middot;</span>

@@ -4,47 +4,65 @@ interface BrandMarkProps {
   size?: number;
   showWordmark?: boolean;
   className?: string;
+  variant?: 'auto' | 'light' | 'dark';
 }
+
+export const LOGO_ASSET_PATH = '/assets/aistudio/image_25e96cc2.png';
 
 export const BrandMark: React.FC<BrandMarkProps> = ({
   size = 28,
   showWordmark = false,
   className = '',
+  variant = 'auto',
 }) => {
+  const radius = Math.max(6, Math.round(size * 0.25));
+
+  const renderCroppedLogo = (mode: 'light' | 'dark', extraClass = '') => (
+    <span
+      className={`relative inline-block overflow-hidden shrink-0 border ${
+        mode === 'dark'
+          ? 'bg-[#111111] border-[#2E2436]'
+          : 'bg-white border-[#E5DCE9]'
+      } ${extraClass}`}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: radius,
+      }}
+      aria-hidden="true"
+    >
+      <img
+        src={LOGO_ASSET_PATH}
+        alt=""
+        draggable={false}
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          height: '188%',
+          width: 'auto',
+          maxWidth: 'none',
+          transform:
+            mode === 'dark'
+              ? 'translate(-75.2%, -50%)'
+              : 'translate(-24.8%, -50%)',
+        }}
+      />
+    </span>
+  );
+
   return (
     <span className={`inline-flex items-center gap-2.5 select-none ${className}`}>
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 36 36"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-        className="shrink-0"
-      >
-        <rect
-          x="2"
-          y="2"
-          width="32"
-          height="32"
-          rx="10"
-          fill="#FFFFFF"
-          stroke="#39243B"
-          strokeWidth="2.2"
-        />
-        <path
-          d="M18 8.5C15.8 8.5 14 10.7 14 13.5C14 14.3 14.15 15.05 14.4 15.7C11.9 15.3 9.5 16.9 9.1 19.2C8.7 21.5 10.5 23.6 13.1 24C14.1 24.15 15.05 24 15.85 23.65C15.9 25.95 16.85 27.6 18 27.6C19.15 27.6 20.1 25.95 20.15 23.65C20.95 24 21.9 24.15 22.9 24C25.5 23.6 27.3 21.5 26.9 19.2C26.5 16.9 24.1 15.3 21.6 15.7C21.85 15.05 22 14.3 22 13.5C22 10.7 20.2 8.5 18 8.5Z"
-          fill="#F5E6F3"
-          stroke="#39243B"
-          strokeWidth="1.5"
-        />
-        <circle cx="15.2" cy="14.8" r="3.4" fill="#D57FC4" opacity="0.85" />
-        <circle cx="20.8" cy="15.2" r="3.4" fill="#B8D7FF" opacity="0.9" />
-        <circle cx="18" cy="18.2" r="3.2" fill="#FFFFFF" stroke="#39243B" strokeWidth="1.6" />
-        <circle cx="26.5" cy="9.5" r="1.7" fill="#39243B" />
-      </svg>
+      {variant === 'auto' ? (
+        <>
+          {renderCroppedLogo('light', 'dark:hidden')}
+          {renderCroppedLogo('dark', 'hidden dark:inline-block')}
+        </>
+      ) : (
+        renderCroppedLogo(variant)
+      )}
       {showWordmark && (
-        <span className="font-display text-lg font-bold tracking-tight text-[#39243B] whitespace-nowrap shrink-0">
+        <span className="font-display text-lg font-bold tracking-tight text-[#39243B] dark:text-[#F6EFF8] whitespace-nowrap shrink-0">
           Inztagram
         </span>
       )}

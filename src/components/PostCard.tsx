@@ -13,6 +13,7 @@ import { useApp } from '../context/AppContext';
 import type { Post } from '../types/inztagram';
 import { formatCompactCount, formatRelativeTime, shareContent } from '../utils/formatters';
 import { ReelVideoPlayer, ResilientImage } from './ResilientMedia';
+import { SampleBadge } from './SampleBadge';
 
 interface PostCardProps {
   post: Post;
@@ -28,6 +29,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
     savedPostIds,
     followingIds,
     toggleLike,
+    loadCommentsForPost,
     addComment,
     toggleFollow,
     toggleSavePost,
@@ -97,7 +99,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             key={`${part}-${idx}`}
             type="button"
             onClick={() => openExploreWithTag(part)}
-            className="text-[#37689E] hover:underline font-medium"
+            className="text-[#37689E] dark:text-[#7AA6FF] hover:underline font-medium"
           >
             {part}
           </button>
@@ -108,7 +110,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
   };
 
   return (
-    <article className="rounded-2xl bg-white border border-[#E5DCE9] overflow-hidden">
+    <article className="rounded-2xl bg-white dark:bg-[#18131D] border border-[#E5DCE9] dark:border-[#2E2436] overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between gap-3">
         <button
@@ -120,13 +122,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             src={author.avatarUrl}
             alt={author.displayName}
             objectPosition={author.avatarPosition}
-            className="w-10 h-10 rounded-full object-cover border border-[#E5DCE9] shrink-0"
+            className="w-10 h-10 rounded-full object-cover border border-[#E5DCE9] dark:border-[#3A2D45] shrink-0"
           />
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#39243B] group-hover:underline truncate">
-              {author.displayName}
-            </p>
-            <p className="text-xs text-[#68556B] flex items-center gap-1.5 truncate">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className="text-sm font-semibold text-[#39243B] dark:text-[#F6EFF8] group-hover:underline truncate">
+                {author.displayName}
+              </p>
+              {(post.isSample || author.isSample) && <SampleBadge compact />}
+            </div>
+            <p className="text-xs text-[#68556B] dark:text-[#B7A6BD] flex items-center gap-1.5 truncate">
               <span>@{author.username}</span>
               <span aria-hidden="true">&middot;</span>
               <time dateTime={new Date(post.createdAt).toISOString()}>
@@ -143,8 +148,8 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               onClick={() => toggleFollow(author.uid)}
               className={`min-h-[34px] px-3 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                 isFollowing
-                  ? 'bg-[#F8F5FA] border border-[#E5DCE9] text-[#68556B] hover:text-[#39243B]'
-                  : 'bg-[#EEF6FF] hover:bg-[#DCEBFF] text-[#2A5380]'
+                  ? 'bg-[#F8F5FA] dark:bg-[#231C29] border border-[#E5DCE9] dark:border-[#2E2436] text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]'
+                  : 'bg-[#EEF6FF] dark:bg-[#1B2A42] hover:bg-[#DCEBFF] dark:hover:bg-[#243757] text-[#2A5380] dark:text-[#9FC1FF]'
               }`}
             >
               {isFollowing ? 'Following' : 'Follow'}
@@ -157,73 +162,73 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               onClick={() => setMenuOpen((prev) => !prev)}
               aria-label="Post options"
               aria-expanded={menuOpen}
-              className="min-h-[40px] min-w-[40px] rounded-xl flex items-center justify-center text-[#68556B] hover:bg-[#F8F5FA] hover:text-[#39243B] transition-colors"
+              className="min-h-[40px] min-w-[40px] rounded-xl flex items-center justify-center text-[#68556B] dark:text-[#B7A6BD] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29] hover:text-[#39243B] dark:hover:text-[#F6EFF8] transition-colors"
             >
               <MoreHorizontal className="w-5 h-5" aria-hidden="true" />
             </button>
 
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 mt-1 w-52 rounded-xl bg-white border border-[#E5DCE9] shadow-lg p-1.5 z-20"
-            >
-              {isOwner ? (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    deletePost(post.id);
-                  }}
-                  className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-semibold text-[#B4234A] hover:bg-[#FDF2F5] flex items-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  <span>Delete post</span>
-                </button>
-              ) : (
-                <>
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-1 w-52 rounded-xl bg-white dark:bg-[#1B1522] border border-[#E5DCE9] dark:border-[#2E2436] shadow-lg p-1.5 z-20"
+              >
+                {isOwner ? (
                   <button
                     type="button"
                     role="menuitem"
                     onClick={() => {
                       setMenuOpen(false);
-                      reportContent({
-                        targetType: 'post',
-                        targetId: post.id,
-                        reason: 'Reported from feed',
-                      });
+                      deletePost(post.id);
                     }}
-                    className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-medium text-[#39243B] hover:bg-[#F8F5FA] flex items-center gap-2"
+                    className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-semibold text-[#B4234A] dark:text-[#FF7B9C] hover:bg-[#FDF2F5] dark:hover:bg-[#2F1722] flex items-center gap-2"
                   >
-                    <Flag className="w-4 h-4 text-[#68556B]" aria-hidden="true" />
-                    <span>
-                      Report post {mode === 'demo' ? '(Demo only)' : ''}
-                    </span>
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    <span>Delete post</span>
                   </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      toggleBlockUser(author.uid);
-                    }}
-                    className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-semibold text-[#B4234A] hover:bg-[#FDF2F5] flex items-center gap-2"
-                  >
-                    <ShieldBan className="w-4 h-4" aria-hidden="true" />
-                    <span>
-                      Block @{author.username} {mode === 'demo' ? '(Demo)' : ''}
-                    </span>
-                  </button>
-                </>
-              )}
-            </div>
-          )}
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        reportContent({
+                          targetType: 'post',
+                          targetId: post.id,
+                          reason: 'Reported from feed',
+                        });
+                      }}
+                      className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-medium text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29] flex items-center gap-2"
+                    >
+                      <Flag className="w-4 h-4 text-[#68556B] dark:text-[#B7A6BD]" aria-hidden="true" />
+                      <span>
+                        Report post {mode === 'demo' ? '(Demo only)' : ''}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        toggleBlockUser(author.uid);
+                      }}
+                      className="w-full min-h-[40px] px-3 py-2 rounded-lg text-left text-xs font-semibold text-[#B4234A] dark:text-[#FF7B9C] hover:bg-[#FDF2F5] dark:hover:bg-[#2F1722] flex items-center gap-2"
+                    >
+                      <ShieldBan className="w-4 h-4" aria-hidden="true" />
+                      <span>
+                        Block @{author.username} {mode === 'demo' ? '(Demo)' : ''}
+                      </span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Media container */}
-      <div className="bg-[#F3EEF7]">
+      <div className="bg-[#F3EEF7] dark:bg-[#130F17]">
         {post.mediaType === 'video' ? (
           <ReelVideoPlayer
             src={post.mediaUrl}
@@ -269,12 +274,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               aria-label={isLiked ? 'Unlike post' : 'Like post'}
               className={`min-h-[40px] px-2.5 rounded-xl inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${
                 isLiked
-                  ? 'text-[#A74695] bg-[#FDF5FB]'
-                  : 'text-[#39243B] hover:bg-[#F8F5FA]'
+                  ? 'text-[#A74695] dark:text-[#FF64AE] bg-[#FDF5FB] dark:bg-[#2F1D2C]'
+                  : 'text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29]'
               }`}
             >
               <Heart
-                className={`w-5 h-5 ${isLiked ? 'fill-[#D57FC4] text-[#A74695]' : ''}`}
+                className={`w-5 h-5 ${
+                  isLiked
+                    ? 'fill-[#D57FC4] dark:fill-[#FF64AE] text-[#A74695] dark:text-[#FF64AE]'
+                    : ''
+                }`}
                 aria-hidden="true"
               />
               <span className="tabular-nums">{formatCompactCount(post.likesCount)}</span>
@@ -282,10 +291,14 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
             <button
               type="button"
-              onClick={() => setShowComments((prev) => !prev)}
+              onClick={() => {
+                const next = !showComments;
+                setShowComments(next);
+                if (next) void loadCommentsForPost(post.id);
+              }}
               aria-expanded={showComments}
               aria-label="Comments"
-              className="min-h-[40px] px-2.5 rounded-xl inline-flex items-center gap-1.5 text-sm font-medium text-[#39243B] hover:bg-[#F8F5FA] transition-colors"
+              className="min-h-[40px] px-2.5 rounded-xl inline-flex items-center gap-1.5 text-sm font-medium text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29] transition-colors"
             >
               <MessageCircle className="w-5 h-5" aria-hidden="true" />
               <span className="tabular-nums">{formatCompactCount(post.commentsCount)}</span>
@@ -295,7 +308,7 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               type="button"
               onClick={handleShare}
               aria-label="Share post"
-              className="min-h-[40px] min-w-[40px] rounded-xl inline-flex items-center justify-center text-[#39243B] hover:bg-[#F8F5FA] transition-colors"
+              className="min-h-[40px] min-w-[40px] rounded-xl inline-flex items-center justify-center text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29] transition-colors"
             >
               <Send className="w-5 h-5" aria-hidden="true" />
             </button>
@@ -308,12 +321,16 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
             aria-label={isSaved ? 'Remove bookmark' : 'Save post'}
             className={`min-h-[40px] min-w-[40px] rounded-xl inline-flex items-center justify-center transition-colors ${
               isSaved
-                ? 'text-[#37689E] bg-[#EEF6FF]'
-                : 'text-[#39243B] hover:bg-[#F8F5FA]'
+                ? 'text-[#37689E] dark:text-[#7AA6FF] bg-[#EEF6FF] dark:bg-[#1B2A42]'
+                : 'text-[#39243B] dark:text-[#F6EFF8] hover:bg-[#F8F5FA] dark:hover:bg-[#231C29]'
             }`}
           >
             <Bookmark
-              className={`w-5 h-5 ${isSaved ? 'fill-[#B8D7FF] text-[#37689E]' : ''}`}
+              className={`w-5 h-5 ${
+                isSaved
+                  ? 'fill-[#B8D7FF] dark:fill-[#7AA6FF] text-[#37689E] dark:text-[#7AA6FF]'
+                  : ''
+              }`}
               aria-hidden="true"
             />
           </button>
@@ -321,11 +338,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
         {/* Caption */}
         {post.caption && (
-          <p className="text-sm text-[#39243B] leading-relaxed">
+          <p className="text-sm text-[#39243B] dark:text-[#E9DDF0] leading-relaxed">
             <button
               type="button"
               onClick={() => openProfile(author.uid)}
-              className="font-semibold hover:underline mr-1.5"
+              className="font-semibold text-[#39243B] dark:text-[#F6EFF8] hover:underline mr-1.5"
             >
               {author.username}
             </button>
@@ -337,8 +354,11 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
         {comments.length > 0 && !showComments && (
           <button
             type="button"
-            onClick={() => setShowComments(true)}
-            className="text-xs font-medium text-[#68556B] hover:text-[#39243B]"
+            onClick={() => {
+              setShowComments(true);
+              void loadCommentsForPost(post.id);
+            }}
+            className="text-xs font-medium text-[#68556B] dark:text-[#B7A6BD] hover:text-[#39243B] dark:hover:text-[#F6EFF8]"
           >
             View all {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
           </button>
@@ -346,25 +366,27 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
 
         {/* Comments list */}
         {showComments && (
-          <div className="space-y-2 pt-1 border-t border-[#F1ECF5]">
+          <div className="space-y-2 pt-1 border-t border-[#F1ECF5] dark:border-[#2E2436]">
             {comments.length === 0 ? (
-              <p className="text-xs text-[#68556B] py-1">No comments yet. Start the conversation.</p>
+              <p className="text-xs text-[#68556B] dark:text-[#B7A6BD] py-1">
+                No comments yet. Start the conversation.
+              </p>
             ) : (
               comments.map((comment) => {
                 const cAuthor = usersById[comment.authorId];
                 return (
                   <div key={comment.id} className="text-sm flex items-start justify-between gap-2">
-                    <p className="text-[#39243B] leading-snug">
+                    <p className="text-[#39243B] dark:text-[#E9DDF0] leading-snug">
                       <button
                         type="button"
                         onClick={() => cAuthor && openProfile(cAuthor.uid)}
-                        className="font-semibold hover:underline mr-1.5"
+                        className="font-semibold text-[#39243B] dark:text-[#F6EFF8] hover:underline mr-1.5"
                       >
                         {cAuthor?.username || 'member'}
                       </button>
                       <span>{comment.text}</span>
                     </p>
-                    <span className="text-[11px] text-[#68556B] shrink-0 tabular-nums">
+                    <span className="text-[11px] text-[#68556B] dark:text-[#B7A6BD] shrink-0 tabular-nums">
                       {formatRelativeTime(comment.createdAt)}
                     </span>
                   </div>
@@ -390,18 +412,18 @@ export const PostCard: React.FC<PostCardProps> = ({ post }) => {
               }}
               placeholder="Add a comment..."
               maxLength={500}
-              className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-[#E5DCE9] bg-[#FAF8FC] text-sm text-[#39243B] placeholder:text-[#8E7B91] focus:bg-white"
+              className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-[#E5DCE9] dark:border-[#2E2436] bg-[#FAF8FC] dark:bg-[#231C29] text-sm text-[#39243B] dark:text-[#F6EFF8] placeholder:text-[#8E7B91] focus:bg-white dark:focus:bg-[#1E1824]"
             />
             <button
               type="submit"
               disabled={submittingComment}
-              className="min-h-[40px] px-3.5 rounded-xl bg-[#39243B] hover:bg-[#4E3351] disabled:opacity-50 text-white text-xs font-semibold transition-colors whitespace-nowrap"
+              className="min-h-[40px] px-3.5 rounded-xl bg-[#39243B] dark:bg-[#FF64AE] hover:bg-[#4E3351] dark:hover:bg-[#ff7abb] disabled:opacity-50 text-white dark:text-[#111111] text-xs font-semibold transition-colors whitespace-nowrap"
             >
               Post
             </button>
           </div>
           {commentError && (
-            <p role="alert" className="text-xs text-[#B4234A]">
+            <p role="alert" className="text-xs text-[#B4234A] dark:text-[#FF7B9C]">
               {commentError}
             </p>
           )}
